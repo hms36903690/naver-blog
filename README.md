@@ -11,7 +11,7 @@
 1. **Node.js** — https://nodejs.org 에서 "LTS" 버전을 받아 설치합니다.
 2. **Claude Code** — 명령어를 입력하는 창에서 아래를 붙여넣고 엔터:
    ```
-   npm install -g @anthropic-ai/claude-code
+   npm install -g --allow-scripts=@anthropic-ai/claude-code @anthropic-ai/claude-code
    ```
    그다음 `claude` 를 입력해 한 번 로그인합니다(구독 요금제 계정).
 3. 확인 — 아래를 붙여넣었을 때 숫자 두 줄이 나오면 준비 끝입니다.
@@ -49,6 +49,8 @@
 - 윈도우 동작(폴더 선택창, claude 실행)은 아직 실제 윈도우에서 확인하지 못했습니다.
 
 ## 개발자용
+
+- 원본 명세: `docs/PROMPT.md` · 만들면서 새로 알아낸 함정: `docs/FINDINGS.md`
 
 - `npm test` — 계산·안전장치·수집 필터·최소 재현(계정·AI 불필요)
 - `npm run test:harness` — 가짜 에디터(scripts/harness)로 입력 순서 검증
