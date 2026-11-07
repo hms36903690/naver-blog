@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><title>tistory harness</title>
+<style>body{margin:0;font:14px sans-serif} #wrap{padding:20px 60px 120px} textarea#post-title-inp{width:100%;font-size:24px;border:0;border-bottom:1px solid #ccc}
+iframe{width:100%;height:500px;border:1px solid #ddd} .bar{position:fixed;bottom:0;left:0;right:0;height:56px;background:#fafafa;border-top:1px solid #ccc;display:flex;gap:8px;justify-content:flex-end;align-items:center;padding:0 20px}
+#toast{display:none;position:fixed;top:20px;left:40%;background:#333;color:#fff;padding:8px 14px}</style></head>
+<body>
+<div id="wrap">
+  <textarea id="post-title-inp" placeholder="제목을 입력하세요" rows="1"></textarea>
+  <iframe id="editor-tistory_ifr"></iframe>
+</div>
+<div class="bar">
+  <!-- ⚠️ 하네스: 발행 계열 버튼이 눌리면 기록한다(0회여야 한다) -->
+  <button class="btn btn-default">미리보기</button>
+  <button class="btn btn-draft">임시저장</button><a class="count">3</a>
+  <button id="publish-layer-btn" class="btn btn-default">완료</button>
+  <button class="btn">공개 발행</button>
+</div>
+<div id="toast"></div>
+<script>
+  const q = new URLSearchParams(location.search);
+  window.__publishClicks = 0; window.__saved = null;
+  document.querySelectorAll('#publish-layer-btn, .bar button:not(.btn-draft)').forEach(b => b.addEventListener('click', () => { if (!b.classList.contains('btn-draft')) window.__publishClicks++; }));
+  const f = document.getElementById('editor-tistory_ifr');
+  f.srcdoc = '<body contenteditable="true" style="font:15px sans-serif"></body>';
+  if (!q.get('noTiny')) {
+    // tinymce 흉내: activeEditor.setContent/getContent
+    window.tinymce = { activeEditor: {
+      setContent(h) { f.contentDocument.body.innerHTML = h; },
+      getContent() { return f.contentDocument.body.innerHTML; },
+      setDirty() {}, fire() {}, save() {},
+    } };
+  }
+  document.querySelector('.btn-draft').onclick = async () => {
+    const body = { title: document.getElementById('post-title-inp').value, content: f.contentDocument.body.innerHTML };
+    await fetch('/manage/drafts', { method: 'POST', body: JSON.stringify(body) });
+    window.__saved = body;
+    const t = document.getElementById('toast'); t.textContent = '임시저장 되었습니다'; t.style.display = 'block';
+  };
+  // 이어서 쓰기 확인창(취소=새 글)
+  setTimeout(() => { if (confirm('저장된 글이 있습니다. 이어서 작성하시겠습니까?')) document.getElementById('post-title-inp').value = '예전 글'; }, 300);
+</script>
+</body></html>

@@ -16,6 +16,7 @@ export type Settings = {
   showBrowser: boolean;
   claudeTimeoutSec: number;
   claudeConcurrency: number;
+  tistoryBlog: string;
 };
 export type Limits = Record<string, { min: number; max: number }>;
 
@@ -61,9 +62,19 @@ export default function SettingsDrawer(props: {
   settings: Settings;
   limits: Limits;
   onChange: (s: Settings) => void;
+  tistoryMessage?: string;
 }) {
   const { settings: s, limits } = props;
   const [err, setErr] = useState("");
+  const [blog, setBlog] = useState(s.tistoryBlog);
+  useEffect(() => setBlog(s.tistoryBlog), [s.tistoryBlog]);
+  const [diag, setDiag] = useState<{ busy: boolean; summary?: string[]; detail?: unknown; error?: string }>({ busy: false });
+  async function diagnose() {
+    setDiag({ busy: true });
+    const r = await fetch("/api/tistory/diagnose", { method: "POST" });
+    const j = await r.json();
+    setDiag(r.ok ? { busy: false, summary: j.summary, detail: j.detail } : { busy: false, error: j.error || "점검 실패" });
+  }
 
   useEffect(() => {
     if (!props.open) return;
@@ -179,6 +190,44 @@ export default function SettingsDrawer(props: {
             AI 응답 대기<small>{range("claudeTimeoutSec")}초</small>
           </div>
           <Num k="claudeTimeoutSec" s={s} limits={limits} save={save} unit="초" />
+        </div>
+
+        <h3>티스토리 (임시저장까지만)</h3>
+        <div className="set" style={{ display: "block" }}>
+          <div style={{ marginBottom: 6 }}>
+            티스토리 주소
+            <small>예: myblog 또는 myblog.tistory.com — 이 앱은 티스토리에 발행하지 않고 임시저장까지만 합니다</small>
+          </div>
+          <input
+            type="text"
+            value={blog}
+            placeholder="myblog.tistory.com"
+            onChange={(e) => setBlog(e.target.value)}
+            onBlur={() => blog !== s.tistoryBlog && save({ tistoryBlog: blog })}
+            onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+          />
+          {props.tistoryMessage && <p className="hint" style={{ margin: "6px 0 0" }}>{props.tistoryMessage}</p>}
+        </div>
+        <div className="set" style={{ display: "block" }}>
+          <div style={{ marginBottom: 6 }}>
+            티스토리 화면 점검
+            <small>로그인한 뒤 눌러주세요. 글쓰기 화면을 열어 재기만 합니다(입력·저장 안 함). 결과를 캡처해 보내주시면 됩니다.</small>
+          </div>
+          <button className="btn" disabled={diag.busy || !s.tistoryBlog} onClick={diagnose}>
+            {diag.busy ? "점검 중… (30초쯤)" : "티스토리 화면 점검"}
+          </button>
+          {diag.error && <p className="err">{diag.error}</p>}
+          {diag.summary && (
+            <div style={{ marginTop: 8 }}>
+              {diag.summary.map((l) => (
+                <div key={l} className="hint">{l}</div>
+              ))}
+              <details>
+                <summary className="hint">자세한 결과(복사해서 보내기)</summary>
+                <textarea readOnly style={{ minHeight: 160, fontSize: 11 }} value={JSON.stringify(diag.detail, null, 1)} />
+              </details>
+            </div>
+          )}
         </div>
 
         <p style={{ marginTop: 24 }}>

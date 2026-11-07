@@ -88,3 +88,24 @@ export const NAVER = {
   imageSearch: (q: string) => `https://search.naver.com/search.naver?where=image&query=${encodeURIComponent(q)}`,
   googleImageSearch: (q: string) => `https://www.google.com/search?tbm=isch&hl=ko&q=${encodeURIComponent(q)}`,
 };
+
+/**
+ * 티스토리 글쓰기 화면 — ⚠️ 아직 "실측 전" 후보값이다(개발 환경에서 티스토리 접속이 막혀 있었다).
+ * 사용자 PC 에서 [티스토리 화면 점검] 으로 실측한 값을 각 배열 "앞"에 추가하고, 기존 값은 남겨라.
+ *
+ * ⚠️ 반자동 원칙: 이 앱은 티스토리에서 "임시저장"까지만 한다. 발행(완료/공개발행) 버튼의 셀렉터는
+ *   일부러 여기에 두지 않는다 — 코드 어디에도 발행 버튼을 누르는 경로가 없어야 한다.
+ */
+export const TISTORY = {
+  loginUrl: "https://www.tistory.com/auth/login",
+  home: "https://www.tistory.com/",
+  newPost: (blog: string) => `https://${blog}.tistory.com/manage/newpost/`,
+  manage: (blog: string) => `https://${blog}.tistory.com/manage`,
+  /** 로그인 판정 쿠키 후보(실측 전) */
+  sessionCookies: ["TSSESSION"],
+  title: ["textarea#post-title-inp", "#post-title-inp", "textarea[placeholder*='제목']", "input[placeholder*='제목']"],
+  /** TinyMCE 편집 영역 iframe 후보(본문은 가능하면 tinymce API 로 넣는다) */
+  editorFrame: ["iframe#editor-tistory_ifr", "iframe[id$='_ifr']", ".mce-edit-area iframe", ".tox-edit-area iframe"],
+  // ⚠️ 7-1 교훈: 텍스트 부분일치는 엉뚱한 버튼을 누른다. 클래스 → 정확일치 순. "임시저장" 은 발행 계열과 겹치지 않는다.
+  draftSave: ["button.btn-draft", "a.btn-draft", ".btn-draft button", "button:text-is('임시저장')", "a:text-is('임시저장')"],
+} as const;

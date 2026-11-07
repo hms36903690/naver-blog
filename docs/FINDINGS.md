@@ -13,9 +13,18 @@
 | N-6 | (잠재) 긴 한글 응답 중간 글자 깨짐(�) | — | stdout Buffer 조각을 그대로 `+=` 하면 UTF-8 3바이트가 조각 경계에서 잘림 | `stdout.setEncoding("utf8")` | `lib/claude.ts` |
 | N-7 | 사용자 PC 에 `claude` 명령이 안 생김 | — | 최신 npm 은 설치 스크립트를 기본 차단 → claude-code 의 postinstall 미실행 | `npm install -g --allow-scripts=@anthropic-ai/claude-code @anthropic-ai/claude-code` | README |
 
+## 티스토리 반자동 (명세 밖 추가 기능)
+
+- 원칙: 이미 애드센스 승인을 받은 블로그를 지키기 위해 **임시저장까지만**. 발행 버튼 셀렉터는 코드에 두지 않고, 테스트가 이를 정적으로 검사한다.
+- 본문은 타이핑하지 않고 TinyMCE API(`tinymce.activeEditor.setContent`)로 HTML 을 넣는다(네이버 7장 함정 대부분이 타이핑에서 나왔다).
+- 셀렉터(`TISTORY` in `lib/scrape/selectors.ts`)는 **실측 전 후보값**이다 — 개발 환경에서 tistory.com·kakao.com 접속이 막혀 있었다.
+  사용자 PC 의 [설정 → 티스토리 화면 점검] 결과(`data/debug/tistory-diagnose-*.json`)로 확정할 것.
+- 사진 자동 업로드는 v1 에서 하지 않는다(업로드 경로 실측 전). 사진 자리에 안내문 + [사진 폴더 열기].
+
 ## 아직 확인하지 못한 것 (네이버 계정 필요 — 9장 6.5-b)
 
 - 살아 있는 스마트에디터에서 7장 셀렉터 실측(조건부 요소 3단계 덤프)
 - 실제 발행(비공개)과 게시글 주소 확인
 - 네이버 검색 수집(개발 환경에서 네이버 접속이 막혀 있었음 — 필터 로직은 고정 자료로만 검증)
 - Cloudflare AI 이미지 생성(열쇠 없음)
+- 티스토리 실제 글쓰기 화면: 로그인 판정 쿠키, 제목·본문·임시저장 셀렉터, 저장 확인 신호

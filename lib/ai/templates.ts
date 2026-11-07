@@ -1,4 +1,4 @@
-import type { Mode, PhotoSource } from "../types";
+import type { Mode, PhotoSource, Target } from "../types";
 
 /** 모든 모드 공통: 마크다운 금지 + 섹션 JSON 형식 설명 */
 export const SECTION_FORMAT = `
@@ -58,7 +58,7 @@ const REVIEW = `
 너는 네이버 블로그 체험단 후기를 쓰는 블로거다.
 - 철저히 1인칭("저희는", "~했어요", "~더라구요"). "ㅎㅎ", "진짜" 같은 표현을 자연스럽게 섞어라.
 - 도입에서 결론을 살짝 흘려라(예: "결론부터 말하면 또 갈 것 같아요").
-- 소제목은 heading 이 아니라 quote 로 만든다. quote 는 15~30자 짧은 한 줄.
+{{HEADING_RULE}}
 - 실용 정보를 구획별로: 가는 법 / 웨이팅 / 가격 / 언제 가면 좋은지 / 주의점 (주제에 맞는 것만).
 - 문단 1~2개마다 사진 1장의 리듬.
 - 마무리는 총평 + "다시 간다면" 팁.
@@ -70,14 +70,36 @@ const BRANDING = `
 구조 고정:
  ① 권위 선점(숫자 실적) ② 독자의 문제/오해 짚기 ③ 왜 그 방법이 안 통하는지
  ④ 이름 붙인 자체 프레임워크(예: "3단계 ○○ 법") ⑤ 예상 반박 Q&A ⑥ 정리 + 행동 유도
-- 소제목은 heading 이 아니라 quote 로 만든다. quote 는 15~30자 짧은 한 줄.
+{{HEADING_RULE}}
 - 구획 전환에 divider 를 1~2회.
 - 숫자·실적을 절대 지어내지 마라. 사용자가 준 내용 안에서만 써라. 없으면 숫자 없이 써라.
 `.trim();
 
-export function modePrompt(mode: Exclude<Mode, "auto">, topic: string, details: string, photoHint: string) {
+/**
+ * 네이버: 상위 노출 블로그 문법대로 소제목을 인용구로.
+ * 티스토리: 구글 검색·애드센스 독자 — 소제목은 heading(H2), 첫 문단에 핵심 답, 끝에 자주 묻는 질문.
+ */
+const HEADING_RULE: Record<Target, string> = {
+  naver: "- 소제목은 heading 이 아니라 quote 로 만든다. quote 는 15~30자 짧은 한 줄.",
+  tistory: "- 소제목은 heading 으로 만든다(검색엔진이 읽는 H2). quote 는 꼭 필요할 때만.",
+};
+
+export function platformStyle(target: Target): string {
+  if (target === "naver") return "";
+  return `
+티스토리(구글 검색) 문체 규칙:
+- 독자는 구글에서 검색해서 들어온 사람이다. 첫 문단 2~3줄 안에 검색한 질문의 핵심 답을 먼저 준다.
+- 소제목(heading) 3~6개로 구획을 나누고, 소제목에는 사람들이 검색할 만한 말을 자연스럽게 넣는다.
+- 과장·낚시성 표현, 같은 말 반복, 키워드 나열을 하지 마라(애드센스 정책상 "가치가 낮은 글"로 보일 수 있다).
+- 마지막에 heading "자주 묻는 질문" 과, 질문 한 줄 + 답 2~3줄 문단을 2~3쌍 둔다.
+- 확인되지 않은 사실·숫자·가격은 쓰지 마라. 모르면 "직접 확인이 필요하다"고 쓴다.
+`.trim();
+}
+
+export function modePrompt(mode: Exclude<Mode, "auto">, topic: string, details: string, photoHint: string, target: Target = "naver") {
   return [
-    mode === "review" ? REVIEW : BRANDING,
+    (mode === "review" ? REVIEW : BRANDING).replace("{{HEADING_RULE}}", HEADING_RULE[target]),
+    platformStyle(target),
     "",
     `주제: ${topic}`,
     `사용자가 준 핵심 내용:\n${details || "(없음 — 주제만으로 일반적인 내용으로 쓰되 사실을 지어내지 마라)"}`,

@@ -10,6 +10,8 @@ import { describePhotos, listLocalPhotos, placePhotos, type LocalPhoto, type Pho
 import { jobLog } from "./log";
 import { checkPublishGuard, publishDraft, type PublishResult } from "./naver/publish";
 import { verifySession } from "./naver/session";
+import { saveTistoryDraft } from "./tistory/draft";
+import { verifyTistory } from "./tistory/session";
 import { paths } from "./paths";
 import { newContext } from "./playwright";
 import { findImageForSlot } from "./scrape/images";
@@ -156,7 +158,7 @@ export async function fillImages(
   return out;
 }
 
-function recordPost(jobId: number, draftId: number, r: PublishResult) {
+function recordPost(jobId: number, draftId: number, r: { status: string; url?: string; screenshot?: string; note: string }) {
   getDb()
     .prepare(
       `INSERT INTO posts (job_id, draft_id, status, blog_url, screenshot, note, published_at)
@@ -173,6 +175,7 @@ export async function runJob(jobId: number): Promise<void> {
   const input = JSON.parse(job.inputs) as JobInput;
   const log = (m: string, lvl: "info" | "warn" | "error" | "ok" = "info") => jobLog(jobId, m, lvl);
   const settings = getSettings();
+  const target = input.target ?? "naver";
   const onRetry = (why: string) => log(`AI 응답이 형식에 맞지 않아 다시 요청합니다 (${why.slice(0, 80)})`, "warn");
 
   try {
@@ -201,7 +204,7 @@ export async function runJob(jobId: number): Promise<void> {
       log(`글감 ${ideas.data.length}개 중 1등: ${ideas.data[0].title}`);
 
       setJobStage(jobId, "writing", "본문 쓰는 중");
-      const d = await generateDraft(input.keyword, ideas.data[0], sources, input.photoSource, onRetry);
+      const d = await generateDraft(input.keyword, ideas.data[0], sources, input.photoSource, onRetry, target);
       if (!d.ok) throw new Error(`본문 쓰기 실패: ${d.error}`);
       draft = d.data;
     } else {
@@ -220,6 +223,7 @@ export async function runJob(jobId: number): Promise<void> {
         input.keyword,
         input.details,
         photoHintFor(input.photoSource, photos.length, photoDescs),
+        target,
       );
       const d = await runClaudeJson(prompt, draftSchemaFor(input.photoSource, photos.length), { onRetry });
       if (!d.ok) throw new Error(`본문 쓰기 실패: ${d.error}`);
@@ -249,6 +253,39 @@ export async function runJob(jobId: number): Promise<void> {
       });
       const slots = draft.sections.filter((s) => s.type === "image").length;
       log(`사진 ${images.size}/${slots}자리 채움${images.size < slots ? ` — 빈 ${slots - images.size}자리는 사진 없이 올라갑니다` : ""}`);
+    }
+
+    // 티스토리: 반자동 — 임시저장까지만(발행은 사람이)
+    if (target === "tistory") {
+      const nowT = getSettings();
+      if (nowT.killSwitch) {
+        recordPost(jobId, draftId, { status: "blocked", note: "전체 중단이 켜져 있어 티스토리에 저장하지 않았습니다." });
+        setJobStage(jobId, "done", "막힘");
+        return;
+      }
+      setJobStage(jobId, "publishing", nowT.dryRun ? "연습: 티스토리 글쓰기 화면에 입력 중" : "티스토리에 임시저장 중");
+      const ts = await verifyTistory();
+      if (ts.state !== "valid") {
+        recordPost(jobId, draftId, { status: "failed", note: ts.message });
+        log(ts.message, "error");
+        setJobStage(jobId, "failed", "티스토리 로그인 필요", ts.message);
+        return;
+      }
+      const tr = await Promise.race([
+        saveTistoryDraft({ jobId, blog: ts.blog, draft, images, dryRun: nowT.dryRun, headless: !nowT.showBrowser, log }),
+        new Promise<{ status: "failed"; note: string }>((res) =>
+          setTimeout(() => res({ status: "failed", note: "티스토리 작업이 15분 안에 끝나지 않아 중단했습니다." }), PUBLISH_CAP_MS),
+        ),
+      ]);
+      recordPost(jobId, draftId, tr);
+      if (tr.status === "failed") {
+        log(tr.note, "error");
+        setJobStage(jobId, "failed", "티스토리 저장 실패", tr.note);
+      } else {
+        log(tr.note, tr.status === "draft_unverified" ? "warn" : "ok");
+        setJobStage(jobId, "done", tr.status === "dry_run" ? "연습 완료" : "임시저장됨");
+      }
+      return;
     }
 
     // 발행

@@ -39,6 +39,17 @@ async function launch(headless: boolean): Promise<Browser> {
   }
 }
 
+/** 임의의 storageState 파일(티스토리 등)을 입히는 범용 컨텍스트 */
+export async function newContextWith(opts: { headless: boolean; storageState?: string }): Promise<{
+  browser: Browser;
+  context: BrowserContext;
+}> {
+  const browser = await launch(opts.headless);
+  const storageState = opts.storageState && fs.existsSync(opts.storageState) ? opts.storageState : undefined;
+  const context = await browser.newContext({ viewport: { width: 1366, height: 900 }, locale: "ko-KR", userAgent: UA, storageState });
+  return { browser, context };
+}
+
 export async function newContext(opts: { headless: boolean; useNaverSession: boolean }): Promise<{
   browser: Browser;
   context: BrowserContext;

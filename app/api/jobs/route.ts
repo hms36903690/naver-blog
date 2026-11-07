@@ -3,6 +3,7 @@ import { ACTIVE_STATUSES, getDb, transaction } from "@/lib/db";
 import { createJob, runJob } from "@/lib/pipeline";
 import { JobInput } from "@/lib/types";
 import { hasCloudflare } from "@/config";
+import { getSettings } from "@/lib/settings";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,6 +33,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "자동 발굴에는 '내 사진'을 쓸 수 없습니다" }, { status: 400 });
   if (input.photoSource === "local" && !input.photoFolder.trim())
     return NextResponse.json({ error: "사진 폴더를 골라주세요" }, { status: 400 });
+  if (input.target === "tistory" && !getSettings().tistoryBlog)
+    return NextResponse.json({ error: "설정에서 티스토리 주소를 먼저 넣어주세요" }, { status: 400 });
   if (input.photoSource === "ai" && !hasCloudflare())
     return NextResponse.json({ error: "AI 사진을 만들려면 Cloudflare 열쇠가 필요합니다" }, { status: 400 });
 

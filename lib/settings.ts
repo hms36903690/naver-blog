@@ -16,6 +16,8 @@ export type Settings = {
   showBrowser: boolean;
   claudeTimeoutSec: number;
   claudeConcurrency: number;
+  /** 티스토리 블로그 이름(예: myblog → myblog.tistory.com). 비어 있으면 티스토리 기능을 못 쓴다. */
+  tistoryBlog: string;
 };
 
 /** 숫자 설정의 범위. API 로 내려보내 UI 가 같은 규칙을 쓴다. */
@@ -30,6 +32,14 @@ export const LIMITS = {
 } as const;
 
 const BOOL_KEYS = ["dryRun", "killSwitch", "showBrowser"] as const;
+
+/** "https://myblog.tistory.com/manage" 처럼 넣어도 "myblog" 로 정리. 형식이 틀리면 null. */
+export function normalizeTistoryBlog(v: string): string | null {
+  let x = String(v ?? "").trim().toLowerCase();
+  if (!x) return "";
+  x = x.replace(/^https?:\/\//, "").replace(/\/.*$/, "").replace(/\.tistory\.com$/, "");
+  return /^[a-z0-9][a-z0-9-]{0,62}$/.test(x) ? x : null;
+}
 type NumKey = keyof typeof LIMITS;
 const NUM_KEYS = Object.keys(LIMITS) as NumKey[];
 
@@ -56,6 +66,7 @@ export function getSettings(): Settings {
       const n = Number(value);
       if (Number.isFinite(n)) (s as Record<string, unknown>)[key] = clamp(key as NumKey, n);
     } else if (key === "visibility" && (VISIBILITIES as string[]).includes(value)) s.visibility = value as Visibility;
+    else if (key === "tistoryBlog") s.tistoryBlog = value;
   }
   return s;
 }
@@ -73,6 +84,10 @@ export function updateSettings(patch: Record<string, unknown>): Settings {
         const n = Number(v);
         if (!Number.isFinite(n)) throw new UnknownSettingError(`숫자가 아닙니다: ${k}`);
         up.run(k, String(clamp(k as NumKey, n)));
+      } else if (k === "tistoryBlog") {
+        const b = normalizeTistoryBlog(String(v));
+        if (b === null) throw new UnknownSettingError("티스토리 주소 형식이 맞지 않습니다 (예: myblog 또는 myblog.tistory.com)");
+        up.run(k, b);
       } else if (k === "visibility") {
         if (!(VISIBILITIES as unknown[]).includes(v)) throw new UnknownSettingError(`알 수 없는 공개 범위: ${String(v)}`);
         up.run(k, String(v));

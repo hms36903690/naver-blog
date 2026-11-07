@@ -21,6 +21,8 @@ export type Draft = z.infer<typeof DraftBase>;
 export type PhotoSource = "local" | "crawl" | "ai" | "none";
 export type ImageStyle = "photo" | "illust";
 export type Mode = "auto" | "review" | "branding";
+/** 올릴 곳. 티스토리는 "임시저장까지만"(반자동) — 발행은 사람이 직접 한다. */
+export type Target = "naver" | "tistory";
 
 const countImages = (d: Draft) => d.sections.filter((s) => s.type === "image").length;
 
@@ -77,5 +79,6 @@ export const JobInput = z.object({
   imageStyle: z.enum(["photo", "illust"]).optional().default("photo"),
   photoFolder: z.string().optional().default(""),
   photoPlacement: z.enum(["order", "ai"]).optional().default("ai"),
+  target: z.enum(["naver", "tistory"]).optional().default("naver"),
 });
 export type JobInput = z.infer<typeof JobInput>;

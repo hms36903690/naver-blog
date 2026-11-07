@@ -7,6 +7,7 @@ import SettingsDrawer, { type Limits, type Settings } from "./SettingsDrawer";
 type Status = {
   claude: { ok: boolean; version?: string; error?: string };
   naver: { state: string; message: string; blogId?: string; loginInFlight?: boolean };
+  tistory: { state: string; message: string; blog?: string; loginInFlight?: boolean };
   cloudflare: { configured: boolean };
   settings: Settings;
   limits: Limits;
@@ -31,7 +32,7 @@ type Section =
   | { type: "image"; query: string; caption?: string | null };
 type ImageRow = { id: number; query: string; local_path: string | null; source_site: string; verdict_ok: number; verdict_reason: string; section_index: number };
 type JobDetail = {
-  job: { id: number; keyword: string; status: string; stage: string | null; error: string | null; mode: string };
+  job: { id: number; keyword: string; status: string; stage: string | null; error: string | null; mode: string; inputs?: string };
   ideas: Array<{ id: number; title: string; angle: string; chosen: number }>;
   sources: Array<{ id: number; type: string; title: string; url: string }>;
   draft: { title: string; sections: Section[] } | null;
@@ -41,6 +42,7 @@ type JobDetail = {
 };
 
 type Mode = "auto" | "review" | "branding";
+type Target = "naver" | "tistory";
 type PhotoSource = "local" | "crawl" | "ai" | "none";
 const ACTIVE = ["pending", "scraping", "writing", "imaging", "publishing"];
 const MODES: Array<{ id: Mode; name: string; desc: string }> = [
@@ -106,7 +108,8 @@ function statusSig(j: { status: string; post_status?: string | null }) {
   if (ACTIVE.includes(j.status)) return "live";
   if (j.status === "failed" || j.post_status === "failed" || j.post_status === "blocked") return "armed";
   if (j.post_status === "published") return "armed";
-  if (j.post_status === "dry_run") return "safe";
+  if (j.post_status === "dry_run" || j.post_status === "draft_saved") return "safe";
+  if (j.post_status === "draft_unverified") return "live";
   return "dim";
 }
 
@@ -116,6 +119,20 @@ export default function Page() {
   const [jobs, setJobs] = useState<JobRow[]>([]);
   const [drawer, setDrawer] = useState(false);
   const [mode, setMode] = useState<Mode>("auto");
+  const [target, setTargetState] = useState<Target>("naver");
+  useEffect(() => {
+    try {
+      const t = localStorage.getItem("target");
+      if (t === "naver" || t === "tistory") setTargetState(t);
+    } catch {}
+  }, []);
+  const setTarget = (t: Target) => {
+    setTargetState(t);
+    try {
+      localStorage.setItem("target", t);
+    } catch {}
+  };
+  const [tsLoggingIn, setTsLoggingIn] = useState(false);
   const [keyword, setKeyword] = useState("");
   const [details, setDetails] = useState("");
   const [photoSource, setPhotoSource] = useState<PhotoSource>("crawl");
@@ -201,16 +218,19 @@ export default function Page() {
       : s.dryRun
         ? "발행하지 않고 완성 화면만 저장합니다"
         : "완성되는 글이 블로그에 그대로 올라갑니다";
-  const goLabel = s?.dryRun ? "연습으로 만들기" : "글 만들고 발행하기";
+  const isTs = target === "tistory";
+  const goLabel = s?.dryRun ? "연습으로 만들기" : isTs ? "글 만들고 티스토리에 임시저장" : "글 만들고 발행하기";
+  const tsOk = status?.tistory.state === "valid";
   const anyActive = jobs.some((j) => ACTIVE.includes(j.status));
   const naverOk = status?.naver.state === "valid";
   const cfMissing = photoSource === "ai" && status && !status.cloudflare.configured;
-  const canRun = Boolean(s) && !s!.killSwitch && !starting && !anyActive && keyword.trim() && !cfMissing && !(photoSource === "local" && !photoFolder.trim());
+  const canRun =
+    Boolean(s) && !s!.killSwitch && !starting && !anyActive && keyword.trim() && !cfMissing && !(photoSource === "local" && !photoFolder.trim()) && !(isTs && !s!.tistoryBlog);
 
   async function start() {
     if (!canRun) return;
     setFormErr("");
-    if (s && !s.dryRun) {
+    if (s && !s.dryRun && !isTs) {
       const ok = confirm(
         `연습 모드가 꺼져 있습니다. 완성된 글이 네이버 블로그에 "${VISIBILITY_LABEL[s.visibility]}"로 실제로 올라갑니다.\n되돌릴 수 없습니다. 계속할까요?`,
       );
@@ -221,7 +241,7 @@ export default function Page() {
       const r = await fetch("/api/jobs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode, keyword, details, photoSource, imageStyle, photoFolder, photoPlacement: placement }),
+        body: JSON.stringify({ mode, keyword, details, photoSource, imageStyle, photoFolder, photoPlacement: placement, target }),
       });
       const j = await r.json();
       if (!r.ok) {
@@ -247,6 +267,24 @@ export default function Page() {
     } finally {
       setLoggingIn(false);
     }
+  }
+
+  async function tistoryLogin() {
+    setTsLoggingIn(true);
+    setLoginMsg("새 창에서 티스토리(카카오)에 로그인해 주세요.");
+    try {
+      const r = await fetch("/api/tistory/login", { method: "POST" });
+      const j = await r.json();
+      setLoginMsg(j.message || "");
+      await loadStatus(true);
+    } finally {
+      setTsLoggingIn(false);
+    }
+  }
+
+  async function openPhotoFolder(id: number) {
+    const r = await fetch(`/api/open-folder?job=${id}`, { method: "POST" });
+    if (!r.ok) alert((await r.json()).error || "폴더를 열지 못했습니다");
   }
 
   async function pickFolder() {
@@ -280,13 +318,22 @@ export default function Page() {
           <span className="dot" data-ok={naverDot} title={status?.naver.message}>
             <i /> 네이버
           </span>
+          <span className="dot" data-ok={status ? (tsOk ? "1" : status.tistory.state === "no_blog" || status.tistory.state === "none" ? "" : "0") : ""} title={status?.tistory.message}>
+            <i /> 티스토리
+          </span>
           <span className="dot" data-ok={status ? (status.cloudflare.configured ? "1" : "") : ""} title={status?.cloudflare.configured ? "열쇠 있음" : "열쇠 없음(선택)"}>
             <i /> 이미지 생성
           </span>
         </div>
-        <button className="btn" onClick={login} disabled={loggingIn}>
-          {loggingIn ? "로그인 창 열림…" : naverOk ? "네이버 다시 로그인" : "네이버 로그인"}
-        </button>
+        {isTs ? (
+          <button className="btn" onClick={tistoryLogin} disabled={tsLoggingIn || !s?.tistoryBlog} title={!s?.tistoryBlog ? "설정에서 티스토리 주소를 먼저 넣어주세요" : ""}>
+            {tsLoggingIn ? "로그인 창 열림…" : tsOk ? "티스토리 다시 로그인" : "티스토리 로그인"}
+          </button>
+        ) : (
+          <button className="btn" onClick={login} disabled={loggingIn}>
+            {loggingIn ? "로그인 창 열림…" : naverOk ? "네이버 다시 로그인" : "네이버 로그인"}
+          </button>
+        )}
         <button className="btn" onClick={() => setDrawer(true)}>
           설정
         </button>
@@ -327,7 +374,24 @@ export default function Page() {
           {status && !status.claude.ok && (
             <div className="panel err">AI 프로그램(claude)을 찾지 못했습니다. 설치와 로그인이 필요합니다. README의 "준비물"을 봐주세요.</div>
           )}
-          {status && !naverOk && (
+          {status && isTs && !tsOk && (
+            <div className="panel">
+              <b>{status.tistory.state === "no_blog" ? "티스토리 주소가 필요합니다." : "티스토리 로그인이 필요합니다."}</b>
+              <p className="hint" style={{ margin: "6px 0 0" }}>
+                {status.tistory.state === "no_blog" ? (
+                  <>
+                    오른쪽 위 <b>[설정]</b> → 맨 아래 <b>티스토리 주소</b>에 블로그 주소(예: myblog.tistory.com)를 넣어주세요.
+                  </>
+                ) : (
+                  <>
+                    {status.tistory.state === "none" ? "" : `${status.tistory.message} `}위쪽 <b>[티스토리 로그인]</b>을 눌러 새 창에서 카카오 계정으로 로그인해 주세요.
+                  </>
+                )}
+                {loginMsg && <><br />{loginMsg}</>}
+              </p>
+            </div>
+          )}
+          {status && !isTs && !naverOk && (
             <div className="panel">
               <b>네이버 로그인이 필요합니다.</b>
               <p className="hint" style={{ margin: "6px 0 0" }}>
@@ -339,6 +403,18 @@ export default function Page() {
 
           <section className="panel stack" aria-label="글 만들기">
             <h2>글 만들기</h2>
+            <div>
+              <div className="hint" style={{ marginBottom: 6 }}>올릴 곳</div>
+              <div className="seg">
+                <button type="button" aria-pressed={target === "naver"} onClick={() => setTarget("naver")}>네이버 블로그</button>
+                <button type="button" aria-pressed={target === "tistory"} onClick={() => setTarget("tistory")}>티스토리 (임시저장까지만)</button>
+              </div>
+              {isTs && (
+                <p className="hint">
+                  티스토리는 글을 써서 <b>임시저장까지만</b> 합니다. 사장님이 읽고 고친 뒤 직접 발행하세요. 구글 검색에 맞는 정보형 문체로 씁니다.
+                </p>
+              )}
+            </div>
             <div className="cards">
               {MODES.map((m) => (
                 <button
@@ -380,7 +456,13 @@ export default function Page() {
                 ))}
               </div>
               {photoSource === "crawl" && (
-                <p className="hint">워터마크·사람 얼굴이 보이는 사진은 AI가 걸러냅니다. 그래도 저작권을 보장하지는 않습니다.</p>
+                <p className="hint">
+                  워터마크·사람 얼굴이 보이는 사진은 AI가 걸러냅니다. 그래도 저작권을 보장하지는 않습니다.
+                  {isTs && " 애드센스 블로그에는 내 사진이나 AI가 그린 사진을 권합니다."}
+                </p>
+              )}
+              {isTs && photoSource !== "none" && (
+                <p className="hint">티스토리에는 사진 자리에 노란 안내문이 들어갑니다. 사진 파일은 [사진 폴더 열기]로 열어 끌어다 넣으면 됩니다.</p>
               )}
               {photoSource === "ai" && (
                 <div style={{ marginTop: 10 }}>
@@ -411,13 +493,17 @@ export default function Page() {
                 {s.killSwitch
                   ? "전체 중단 중 — 발행되지 않습니다"
                   : s.dryRun
-                    ? "연습 모드 — 블로그에 올라가지 않습니다"
-                    : `실제 발행 — ${VISIBILITY_LABEL[s.visibility]}로 올라갑니다`}
+                    ? isTs
+                      ? "연습 모드 — 티스토리에 저장하지 않습니다"
+                      : "연습 모드 — 블로그에 올라가지 않습니다"
+                    : isTs
+                      ? `티스토리(${s.tistoryBlog || "주소 없음"}) — 임시저장까지만 합니다. 발행은 직접 하세요`
+                      : `실제 발행 — ${VISIBILITY_LABEL[s.visibility]}로 올라갑니다`}
               </div>
             )}
             {formErr && <p className="err">{formErr}</p>}
             {anyActive && <p className="hint">진행 중인 작업이 끝나면 새로 만들 수 있습니다.</p>}
-            <button type="button" className="go" data-sig={sig} disabled={!canRun} onClick={start}>
+            <button type="button" className="go" data-sig={isTs && s && !s.killSwitch ? "safe" : sig} disabled={!canRun} onClick={start}>
               {starting ? "시작하는 중…" : s?.killSwitch ? "전체 중단 중" : goLabel}
             </button>
             <p className="hint">
@@ -445,6 +531,13 @@ export default function Page() {
                   <div>
                     <b>{POST_LABEL[detail.post.status] ?? detail.post.status}</b> — {detail.post.note}
                   </div>
+                  {detail.images.some((i) => i.verdict_ok) && (
+                    <div>
+                      <button className="btn" onClick={() => openPhotoFolder(detail.job.id)}>
+                        사진 폴더 열기
+                      </button>
+                    </div>
+                  )}
                   {detail.post.blog_url && (
                     <div>
                       올라간 글:{" "}
@@ -466,7 +559,11 @@ export default function Page() {
               {detail.draft && (
                 <details open>
                   <summary>글 미리보기</summary>
-                  <Preview d={detail.draft} images={detail.images} headingAsQuote={detail.job.mode !== "auto"} />
+                  <Preview
+                    d={detail.draft}
+                    images={detail.images}
+                    headingAsQuote={detail.job.mode !== "auto" && (() => { try { return JSON.parse(detail.job.inputs || "{}").target !== "tistory"; } catch { return true; } })()}
+                  />
                 </details>
               )}
 
@@ -550,6 +647,7 @@ export default function Page() {
           onClose={() => setDrawer(false)}
           settings={status.settings}
           limits={status.limits}
+          tistoryMessage={status.tistory.message}
           onChange={(ns) => {
             setStatus({ ...status, settings: ns });
             loadUsage();
