@@ -8,6 +8,7 @@ if not exist node_modules (
 )
 if exist .next\BUILD_ID rmdir /s /q .next
 echo 앱을 켭니다. 이 창은 닫지 마세요. 닫으면 앱이 꺼집니다.
-start "" http://localhost:4123
+rem 앱이 켜질 시간을 준 뒤 브라우저를 연다
+start "" cmd /c "timeout /t 12 /nobreak >nul & start http://localhost:4123"
 call npm run dev
 pause
