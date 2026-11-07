@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><title>harness editor</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;font:15px/1.6 sans-serif}
+  .se-toolbar{height:40px;display:flex;gap:4px;align-items:center;padding:0 8px;background:#eee;border-bottom:1px solid #ccc;position:relative;z-index:5}
+  .se-toolbar button{font-size:12px}
+  .dropdown,.palette{display:none;position:absolute;top:40px;background:#fff;border:1px solid #999;padding:4px;z-index:30}
+  .dropdown.on,.palette.on{display:block}
+  /* ⚠️ 7-20 재현: 문서는 뷰포트 높이를 따르고 .se-content 가 스스로 스크롤한다 */
+  .se-content{height:calc(100vh - 41px);overflow:auto;padding:20px 80px 220px;box-sizing:border-box}
+  .se-component{margin:6px 0;border:1px solid transparent;min-height:24px}
+  .se-component-content,.se-section-documentTitle{outline:none}
+  .se-documentTitle p{font-size:24px;font-weight:bold}
+  .se-quotation{border-left:4px solid #333;padding-left:10px;background:#f7f7f7}
+  .se-horizontalLine hr{border:0;border-top:2px solid #999}
+  .se-style-sectionTitle{font-size:19px;font-weight:bold}
+  .se-image img{max-width:300px;display:block}
+  /* ⚠️ 7-18 재현: 캡션은 업로드 직후 0×0 */
+  .se-caption{display:block;width:0;height:0;overflow:hidden;outline:none}
+  .se-caption.se-is-on{width:300px;height:auto;min-height:22px;border:1px dashed #aaa}
+  p.se-text-paragraph{margin:0;min-height:1.6em}
+  .se-popup-dim{position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:50}
+  .se-popup-container{position:fixed;top:160px;left:300px;z-index:51;background:#fff;padding:20px;border:1px solid #333}
+  .se-help-panel,.se-sidebar{position:fixed;right:0;top:41px;bottom:0;width:300px;background:#fafafa;border-left:1px solid #ccc;z-index:20}
+  /* ⚠️ 7-6 재현: 하단 글감 검색바 */
+  .se-flayer-unified-toolbar-wrapper{position:fixed;left:0;right:0;bottom:0;height:56px;background:#ddd;z-index:10;display:flex;align-items:center;padding:0 12px}
+</style></head>
+<body>
+<div class="se-toolbar">
+  <button class="se-image-toolbar-button">사진</button>
+  <button class="se-text-format-toolbar-button">본문</button>
+  <button class="se-bold-toolbar-button">굵게</button>
+  <button class="se-strikethrough-toolbar-button">취소선</button>
+  <button class="se-background-color-toolbar-button">배경색</button>
+  <button class="se-insert-horizontal-line-default-toolbar-button">구분선</button>
+  <div class="dropdown">
+    <button class="se-toolbar-option-text-format-text-button">본문</button>
+    <button class="se-toolbar-option-text-format-sectionTitle-button">소제목</button>
+    <button class="se-toolbar-option-text-format-quotation-button">인용구</button>
+  </div>
+  <div class="palette">
+    <button class="se-color-palette" title="#fff8b2">노랑</button>
+    <button class="se-color-palette-no-color">없음</button>
+  </div>
+  <input type="file" id="file" style="display:none" accept="image/*">
+</div>
+<div class="se-content"></div>
+<div class="se-flayer-unified-toolbar-wrapper"><div class="se-flayer-unified-toolbar se-flayer-unified-toolbar--expanded">
+  <input class="se-flayer-unified-search-input" placeholder="글감 검색"></div></div>
+<script>
+const q = new URLSearchParams(location.search);
+const W = window;
+W.__strikeClicks = 0; W.__bottomTyped = ''; W.__boldClicks = 0; W.__hlOn = 0; W.__hlOff = 0;
+const content = document.querySelector('.se-content');
+
+function textComponent() {
+  const c = document.createElement('div');
+  c.className = 'se-component se-text';
+  c.innerHTML = '<div class="se-section-text se-component-content" contenteditable="true"><p class="se-text-paragraph se-style-text"><br></p></div>';
+  return c;
+}
+function caretTo(node, atEnd = true) {
+  const r = document.createRange(); r.selectNodeContents(node); r.collapse(!atEnd ? true : false);
+  const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+  node.closest('[contenteditable]')?.focus();
+}
+function curPara() {
+  const n = getSelection().anchorNode; if (!n) return null;
+  const el = n.nodeType === 1 ? n : n.parentElement;
+  return el.closest('p.se-text-paragraph');
+}
+function curComponent() {
+  const n = getSelection().anchorNode; if (!n) return null;
+  const el = n.nodeType === 1 ? n : n.parentElement;
+  return el.closest('.se-component');
+}
+
+// 제목
+const title = document.createElement('div');
+title.className = 'se-component se-documentTitle';
+title.innerHTML = '<div class="se-section-documentTitle" contenteditable="true"><p class="se-text-paragraph"><br></p></div>';
+content.appendChild(title);
+title.querySelector('[contenteditable]').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {            // 제목은 한 줄: Enter 는 본문 첫 칸으로(본문이 있으면)
+    e.preventDefault();
+    const b = content.querySelector('.se-section-text p');
+    if (b) caretTo(b);
+  }
+});
+// ⚠️ 7-26 재현: noBody 면 본문 컴포넌트가 없다
+if (!q.get('noBody')) content.appendChild(textComponent());
+
+// 툴바는 포커스를 빼앗지 않는다
+document.querySelector('.se-toolbar').addEventListener('mousedown', (e) => { if (e.target.tagName === 'BUTTON') e.preventDefault(); });
+const dd = document.querySelector('.dropdown'), pal = document.querySelector('.palette');
+document.querySelector('.se-text-format-toolbar-button').onclick = () => { dd.classList.toggle('on'); pal.classList.remove('on'); };
+document.querySelector('.se-background-color-toolbar-button').onclick = () => { pal.classList.toggle('on'); dd.classList.remove('on'); };
+document.querySelector('.se-strikethrough-toolbar-button').onclick = () => { W.__strikeClicks++; document.execCommand('strikeThrough'); };
+document.querySelector('.se-bold-toolbar-button').onclick = () => { W.__boldClicks++; document.execCommand('bold'); };
+pal.querySelector('[title="#fff8b2"]').onclick = () => { W.__hlOn++; document.execCommand('hiliteColor', false, '#fff8b2'); pal.classList.remove('on'); };
+pal.querySelector('.se-color-palette-no-color').onclick = () => { W.__hlOff++; document.execCommand('hiliteColor', false, 'transparent'); pal.classList.remove('on'); };
+
+dd.querySelector('.se-toolbar-option-text-format-text-button').onclick = () => { const p = curPara(); if (p) p.className = 'se-text-paragraph se-style-text'; dd.classList.remove('on'); };
+dd.querySelector('.se-toolbar-option-text-format-sectionTitle-button').onclick = () => { const p = curPara(); if (p) p.className = 'se-text-paragraph se-style-sectionTitle'; dd.classList.remove('on'); };
+// 인용구: 현재 줄을 별도 인용구 "컴포넌트"로 옮긴다. ⚠️ 7-5 재현: 그 안에서는 어떤 키로도 탈출 안 됨
+dd.querySelector('.se-toolbar-option-text-format-quotation-button').onclick = () => {
+  dd.classList.remove('on');
+  const p = curPara(), comp = curComponent(); if (!p || !comp) return;
+  const qc = document.createElement('div');
+  qc.className = 'se-component se-quotation';
+  qc.innerHTML = '<div class="se-quote-content se-component-content" contenteditable="true"></div>';
+  qc.firstChild.appendChild(p);
+  comp.after(qc);
+  if (!comp.querySelector('p')) comp.remove();
+  caretTo(p);
+};
+// 구분선: 현재 컴포넌트 뒤에 삽입, 커서는 제자리(탈출 안 하면 다음 글이 구분선 "앞"에 붙는다)
+document.querySelector('.se-insert-horizontal-line-default-toolbar-button').onclick = () => {
+  const comp = curComponent() || content.lastElementChild;
+  const d = document.createElement('div'); d.className = 'se-component se-horizontalLine'; d.innerHTML = '<hr>';
+  comp.after(d);
+};
+// 사진
+const file = document.getElementById('file');
+document.querySelector('.se-image-toolbar-button').onclick = () => file.click();
+file.onchange = () => {
+  const f = file.files[0]; if (!f) return;
+  const comp = curComponent() || content.lastElementChild;
+  const c = document.createElement('div');
+  c.className = 'se-component se-image';
+  c.innerHTML = '<div class="se-component-content"><img></div><div class="se-module se-module-text __se-unit se-is-empty se-caption" contenteditable="true"></div>';
+  c.querySelector('img').src = URL.createObjectURL(f);
+  setTimeout(() => {
+    comp.after(c);
+    document.activeElement?.blur?.();
+    // ⚠️ 7-21 재현: 사진을 넣으면 우측 도크가 열린다(계열은 환경마다 다름)
+    if (!document.querySelector('.se-sidebar')) {
+      const sb = document.createElement('aside');
+      sb.className = 'se-sidebar se-sidebar-interaction';
+      sb.innerHTML = '<div class="se-sidebar-container se-sidebar-container-library">라이브러리 <button class="se-sidebar-close-button">팝업 닫기</button></div>';
+      sb.querySelector('button').onclick = () => sb.remove();
+      document.body.appendChild(sb);
+    }
+  }, 400);
+  file.value = '';
+};
+// 사진 컴포넌트 클릭 → 캡션 펼침(se-is-on)
+content.addEventListener('mousedown', (e) => {
+  const img = e.target.closest('.se-image');
+  if (img && !e.target.closest('.se-caption')) img.querySelector('.se-caption').classList.add('se-is-on');
+});
+content.addEventListener('input', (e) => {
+  const cap = e.target.closest?.('.se-caption');
+  if (cap) cap.classList.toggle('se-is-empty', !cap.textContent.trim());
+});
+// 마지막 컴포넌트 아래 빈 영역 클릭 → 새 본문 컴포넌트
+content.addEventListener('click', (e) => {
+  if (e.target !== content) return;
+  const last = content.lastElementChild;
+  if (last && e.clientY < last.getBoundingClientRect().bottom) return;
+  const t = textComponent(); content.appendChild(t); caretTo(t.querySelector('p'));
+});
+// 하단 검색바로 샌 입력 기록
+document.querySelector('.se-flayer-unified-search-input').addEventListener('input', (e) => W.__bottomTyped += e.data || '');
+
+// 진입 시: 도움말 패널 + '작성 중인 글' 복원 팝업(차단막 포함)
+const help = document.createElement('div');
+help.className = 'se-help-panel se-help-container';
+help.innerHTML = '<div class="se-help-header">도움말 <button class="se-help-panel-close-button">닫기</button></div>';
+help.querySelector('button').onclick = () => help.remove();
+document.body.appendChild(help);
+const dim = document.createElement('div'); dim.className = 'se-popup-dim';
+const pop = document.createElement('div'); pop.className = 'se-popup-container';
+// ⚠️ 7-1 재현: noCancelClass 면 취소 버튼에 클래스가 없어 텍스트 셀렉터로만 잡힌다
+pop.innerHTML = '작성 중인 글이 있습니다. 이어서 작성하시겠습니까?<br>' +
+  (q.get('noCancelClass') ? '<button>취소</button>' : '<button class="se-popup-button-cancel">취소</button>') +
+  '<button class="se-popup-button-confirm">확인</button>';
+pop.querySelector('button').onclick = () => { pop.remove(); dim.remove(); };
+document.body.append(dim, pop);
+
+if (q.get('publishInside')) {
+  const b = document.createElement('button');
+  b.setAttribute('data-click-area', 'tpb.publish'); b.textContent = '발행';
+  b.style.cssText = 'position:fixed;top:6px;right:340px;z-index:6';
+  b.onclick = () => parent.__openLayer();
+  document.body.appendChild(b);
+}
+
+W.__dump = () => ({
+  strike: W.__strikeClicks, bottomTyped: W.__bottomTyped, bold: W.__boldClicks, hlOn: W.__hlOn, hlOff: W.__hlOff,
+  dim: !!document.querySelector('.se-popup-dim'), popup: !!document.querySelector('.se-popup-container'),
+  sidebar: !!document.querySelector('.se-sidebar'), help: !!document.querySelector('.se-help-panel'),
+  title: content.querySelector('.se-documentTitle')?.innerText.trim(),
+  components: [...content.querySelectorAll(':scope > .se-component')].map((c) => ({
+    cls: c.className.replace('se-component ', ''),
+    text: (c.querySelector('.se-component-content,.se-section-documentTitle')?.innerText || '').replace(/\n+/g, '⏎').trim(),
+    html: c.innerHTML.length < 2000 ? c.innerHTML : '',
+    caption: c.querySelector('.se-caption') ? { cls: c.querySelector('.se-caption').className, text: c.querySelector('.se-caption').innerText } : null,
+  })),
+});
+</script>
+</body></html>

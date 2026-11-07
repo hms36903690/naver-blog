@@ -1,0 +1,313 @@
+import fs from "node:fs";
+import path from "node:path";
+import { hasCloudflare } from "@/config";
+import { generateDraft, generateIdeas, sanitizeDraft } from "./ai/content";
+import { generateForSlot } from "./ai/imagegen";
+import { modePrompt, photoHintFor } from "./ai/templates";
+import { runClaudeJson } from "./claude";
+import { getDb, setJobStage } from "./db";
+import { describePhotos, listLocalPhotos, placePhotos, type LocalPhoto, type PhotoDesc } from "./localPhotos";
+import { jobLog } from "./log";
+import { checkPublishGuard, publishDraft, type PublishResult } from "./naver/publish";
+import { verifySession } from "./naver/session";
+import { paths } from "./paths";
+import { newContext } from "./playwright";
+import { findImageForSlot } from "./scrape/images";
+import { scrapeTrends } from "./scrape/trends";
+import { getSettings } from "./settings";
+import { draftSchemaFor, type Draft, type ImageStyle, type JobInput, type PhotoSource, type Source } from "./types";
+
+const PUBLISH_CAP_MS = 15 * 60 * 1000;
+
+export function createJob(input: JobInput): number {
+  const r = getDb()
+    .prepare("INSERT INTO jobs (keyword, status, stage, auto, mode, inputs) VALUES (?, 'pending', '대기', ?, ?, ?)")
+    .run(input.keyword, input.mode === "auto" ? 1 : 0, input.mode, JSON.stringify(input));
+  return Number(r.lastInsertRowid);
+}
+
+/** ±3 섹션에서 문단 2개(400자) — 사진 자리의 앞뒤 맥락 */
+function contextAround(d: Draft, idx: number): string {
+  const near = d.sections
+    .map((s, i) => ({ s, i }))
+    .filter(({ s, i }) => Math.abs(i - idx) <= 3 && (s.type === "paragraph" || s.type === "quote" || s.type === "heading"))
+    .sort((a, b) => Math.abs(a.i - idx) - Math.abs(b.i - idx))
+    .slice(0, 2)
+    .map(({ s }) => ("text" in s ? s.text : ""));
+  return near.join(" / ").slice(0, 400);
+}
+
+function insertImageRow(row: {
+  jobId: number;
+  draftId: number;
+  query: string;
+  src?: string | null;
+  local?: string | null;
+  site: "naver" | "google" | "ai" | "local";
+  ok: boolean;
+  reason: string;
+  idx: number;
+  genPrompt?: string | null;
+}) {
+  getDb()
+    .prepare(
+      `INSERT INTO images (job_id, draft_id, query, src_url, local_path, source_site, verdict_ok, verdict_reason, section_index, gen_prompt)
+       VALUES (?,?,?,?,?,?,?,?,?,?)`,
+    )
+    .run(row.jobId, row.draftId, row.query, row.src ?? null, row.local ?? null, row.site, row.ok ? 1 : 0, row.reason, row.idx, row.genPrompt ?? null);
+}
+
+/**
+ * ⚠️ photoDescs 는 인자로 받는다. 내부에서 만들지 마라 — 본문 생성 단계에서 만든 사진 설명을 재사용해야
+ *   claude 호출이 배로 들지 않는다(실제 구현자가 처음에 그렇게 짰다).
+ */
+export async function fillImages(
+  jobId: number,
+  draftId: number,
+  draft: Draft,
+  opts: { photoSource: PhotoSource; imageStyle: ImageStyle; photos: LocalPhoto[]; photoDescs: PhotoDesc[]; placement: "order" | "ai" },
+): Promise<Map<number, string>> {
+  const out = new Map<number, string>();
+  const slots = draft.sections.map((s, i) => ({ s, i })).filter(({ s }) => s.type === "image") as Array<{
+    s: Extract<Draft["sections"][number], { type: "image" }>;
+    i: number;
+  }>;
+  if (!slots.length || opts.photoSource === "none") return out;
+  const s = getSettings();
+  const log = (m: string, lvl: "info" | "warn" = "info") => jobLog(jobId, m, lvl);
+
+  if (opts.photoSource === "local") {
+    const assign = await placePhotos(slots.map(({ s: sec }) => sec), opts.photoDescs, opts.placement);
+    // 미리보기(/api/file 은 data 폴더만 서빙)와 업로드를 위해 data 안으로 복사해 둔다
+    const dir = path.join(paths.images, `job${jobId}`);
+    fs.mkdirSync(dir, { recursive: true });
+    assign.forEach((pi, k) => {
+      const p = opts.photos[pi];
+      if (!p) return;
+      const dest = path.join(dir, `local-${k}${path.extname(p.name).toLowerCase()}`);
+      fs.copyFileSync(p.path, dest);
+      out.set(slots[k].i, dest);
+      insertImageRow({ jobId, draftId, query: slots[k].s.query, src: p.path, local: dest, site: "local", ok: true, reason: `내 사진: ${p.name}`, idx: slots[k].i });
+    });
+    log(`내 사진 ${out.size}장을 자리에 배치했습니다(${opts.placement === "ai" ? "내용 맞춤" : "순서대로"})`);
+    return out;
+  }
+
+  if (opts.photoSource === "ai") {
+    if (!hasCloudflare()) {
+      log("Cloudflare 열쇠가 없어 사진 생성을 건너뜁니다", "warn");
+      return out;
+    }
+    for (let k = 0; k < slots.length; k++) {
+      const { s: sec, i } = slots[k];
+      const r = await generateForSlot({
+        jobId,
+        title: draft.title,
+        scene: [sec.query, sec.caption].filter(Boolean).join(" — "),
+        context: contextAround(draft, i),
+        style: opts.imageStyle,
+        steps: s.cfImageSteps,
+        slotIndex: k,
+        log,
+      });
+      insertImageRow({
+        jobId,
+        draftId,
+        query: sec.query,
+        local: r.ok ? r.path : null,
+        site: "ai",
+        ok: r.ok,
+        reason: r.ok ? "생성 통과" : r.reason,
+        idx: i,
+        genPrompt: r.prompt,
+      });
+      if (r.ok) out.set(i, r.path);
+      log(`AI 사진 ${k + 1}/${slots.length}: ${r.ok ? "채택" : `건너뜀(${r.reason.slice(0, 60)})`}`, r.ok ? "info" : "warn");
+    }
+    return out;
+  }
+
+  // crawl
+  const { browser, context } = await newContext({ headless: !s.showBrowser, useNaverSession: false });
+  try {
+    for (let k = 0; k < slots.length; k++) {
+      const { s: sec, i } = slots[k];
+      const r = await findImageForSlot({
+        context,
+        query: sec.query,
+        textContext: contextAround(draft, i),
+        maxCandidates: s.imageCandidates,
+        outDir: path.join(paths.images, `job${jobId}`),
+        slotIndex: k,
+        onCandidate: (c) =>
+          insertImageRow({ jobId, draftId, query: sec.query, src: c.srcUrl, local: c.localPath, site: c.site, ok: c.ok, reason: c.reason, idx: i }),
+      });
+      if (r.chosen?.localPath) out.set(i, r.chosen.localPath);
+      const rej = r.tried.filter((t) => !t.ok).length;
+      log(`사진 ${k + 1}/${slots.length} "${sec.query}": ${r.chosen ? "채택" : "못 찾음"}${rej ? ` (탈락 ${rej}장)` : ""}`, r.chosen ? "info" : "warn");
+      if (r.tried.some((t) => /판정 실패:.*limit/i.test(t.reason))) {
+        log("AI 사용 한도에 걸려 남은 사진 찾기를 멈춥니다", "warn");
+        break;
+      }
+    }
+  } finally {
+    await browser.close().catch(() => {});
+  }
+  return out;
+}
+
+function recordPost(jobId: number, draftId: number, r: PublishResult) {
+  getDb()
+    .prepare(
+      `INSERT INTO posts (job_id, draft_id, status, blog_url, screenshot, note, published_at)
+       VALUES (?,?,?,?,?,?, CASE WHEN ?='published' THEN datetime('now') ELSE NULL END)`,
+    )
+    .run(jobId, draftId, r.status, r.url ?? null, r.screenshot ?? null, r.note, r.status);
+}
+
+/** fire-and-forget. API 라우트에서 await 하지 말고 .catch(console.error) 만 붙인다. */
+export async function runJob(jobId: number): Promise<void> {
+  const db = getDb();
+  const job = db.prepare("SELECT * FROM jobs WHERE id=?").get(jobId) as { inputs: string } | undefined;
+  if (!job) return;
+  const input = JSON.parse(job.inputs) as JobInput;
+  const log = (m: string, lvl: "info" | "warn" | "error" | "ok" = "info") => jobLog(jobId, m, lvl);
+  const settings = getSettings();
+  const onRetry = (why: string) => log(`AI 응답이 형식에 맞지 않아 다시 요청합니다 (${why.slice(0, 80)})`, "warn");
+
+  try {
+    let draft: Draft;
+    let ideaId: number | null = null;
+    let photos: LocalPhoto[] = [];
+    let photoDescs: PhotoDesc[] = [];
+
+    if (input.mode === "auto") {
+      // 수집 → 글감 → 본문
+      setJobStage(jobId, "scraping", "자료 모으는 중");
+      log(`"${input.keyword}" 관련 뉴스·블로그를 모읍니다`);
+      const sources: Source[] = await scrapeTrends(input.keyword, settings.scrapeTopN, { headless: !settings.showBrowser, log });
+      const ins = db.prepare("INSERT INTO sources (job_id, type, title, summary, url) VALUES (?,?,?,?,?)");
+      for (const s of sources) ins.run(jobId, s.type, s.title, s.summary, s.url);
+      if (!sources.length) log("모은 자료가 없습니다 — 키워드만으로 글감을 만듭니다", "warn");
+
+      setJobStage(jobId, "writing", "글감 고르는 중");
+      const ideas = await generateIdeas(input.keyword, sources, 5, onRetry);
+      if (!ideas.ok) throw new Error(`글감 만들기 실패: ${ideas.error}`);
+      const insIdea = db.prepare("INSERT INTO ideas (job_id, title, angle, rationale, chosen) VALUES (?,?,?,?,?)");
+      ideas.data.forEach((it, i) => {
+        const r = insIdea.run(jobId, it.title, it.angle, it.rationale, i === 0 ? 1 : 0);
+        if (i === 0) ideaId = Number(r.lastInsertRowid);
+      });
+      log(`글감 ${ideas.data.length}개 중 1등: ${ideas.data[0].title}`);
+
+      setJobStage(jobId, "writing", "본문 쓰는 중");
+      const d = await generateDraft(input.keyword, ideas.data[0], sources, input.photoSource, onRetry);
+      if (!d.ok) throw new Error(`본문 쓰기 실패: ${d.error}`);
+      draft = d.data;
+    } else {
+      // 유형별: (로컬사진 목록·설명) → 본문
+      if (input.photoSource === "local") {
+        photos = listLocalPhotos(input.photoFolder);
+        if (!photos.length) throw new Error("사진 폴더에 사진(jpg·png·webp·heic)이 없습니다.");
+        log(`내 사진 ${photos.length}장을 찾았습니다`);
+        setJobStage(jobId, "writing", "사진 살펴보는 중");
+        // ⚠️ 본문 생성 전에 한 번만 — 이후 프롬프트와 배치에 재사용(6-8, 6-10)
+        photoDescs = await describePhotos(photos, log);
+      }
+      setJobStage(jobId, "writing", "본문 쓰는 중");
+      const prompt = modePrompt(
+        input.mode,
+        input.keyword,
+        input.details,
+        photoHintFor(input.photoSource, photos.length, photoDescs),
+      );
+      const d = await runClaudeJson(prompt, draftSchemaFor(input.photoSource, photos.length), { onRetry });
+      if (!d.ok) throw new Error(`본문 쓰기 실패: ${d.error}`);
+      draft = d.data;
+    }
+
+    // ⚠️ 7-24: 지어낸 highlight 는 개별로 떨어뜨린다(초안 전체 반려 X)
+    const san = sanitizeDraft(draft);
+    draft = san.draft;
+    if (san.droppedHighlights) log(`본문에 없는 강조 구절 ${san.droppedHighlights}개를 뺐습니다`, "warn");
+    const dr = db
+      .prepare("INSERT INTO drafts (job_id, idea_id, title, body_json) VALUES (?,?,?,?)")
+      .run(jobId, ideaId, draft.title, JSON.stringify(draft.sections));
+    const draftId = Number(dr.lastInsertRowid);
+    log(`초안 완성: "${draft.title}" (${draft.sections.length}개 블록)`, "ok");
+
+    // 사진
+    let images = new Map<number, string>();
+    if (input.photoSource !== "none") {
+      setJobStage(jobId, "imaging", input.photoSource === "ai" ? "사진 그리는 중" : input.photoSource === "crawl" ? "사진 찾는 중" : "사진 배치 중");
+      images = await fillImages(jobId, draftId, draft, {
+        photoSource: input.photoSource,
+        imageStyle: input.imageStyle,
+        photos,
+        photoDescs,
+        placement: input.photoPlacement,
+      });
+      const slots = draft.sections.filter((s) => s.type === "image").length;
+      log(`사진 ${images.size}/${slots}자리 채움${images.size < slots ? ` — 빈 ${slots - images.size}자리는 사진 없이 올라갑니다` : ""}`);
+    }
+
+    // 발행
+    setJobStage(jobId, "publishing", settings.dryRun ? "연습: 글쓰기 화면에 입력 중" : "네이버에 올리는 중");
+    const now = getSettings(); // 작업 도중 바뀐 설정(연습 모드·중단)을 반영
+    if (!now.dryRun) {
+      const g = checkPublishGuard(now);
+      if (g.blocked) {
+        recordPost(jobId, draftId, { status: "blocked", note: g.reason });
+        log(g.reason, "warn");
+        setJobStage(jobId, "done", "발행 막힘");
+        return;
+      }
+    }
+    const sess = await verifySession();
+    if (sess.state !== "valid") {
+      const note =
+        sess.state === "none"
+          ? "네이버 로그인이 필요합니다. 화면 위 [네이버 로그인]을 눌러주세요."
+          : sess.state === "write_expired"
+            ? "글쓰기 로그인이 풀렸습니다. [네이버 로그인]을 다시 눌러주시고 '로그인 상태 유지'를 꼭 체크해 주세요."
+            : `네이버 로그인 확인 실패: ${sess.message}`;
+      recordPost(jobId, draftId, { status: "failed", note });
+      log(note, "error");
+      setJobStage(jobId, "failed", "로그인 필요", note);
+      return;
+    }
+
+    const result = await Promise.race<PublishResult>([
+      publishDraft({
+        jobId,
+        draft,
+        images,
+        blogId: sess.blogId,
+        dryRun: now.dryRun,
+        visibility: now.visibility,
+        headless: !now.showBrowser,
+        headingAsQuote: input.mode !== "auto",
+        log,
+      }),
+      new Promise<PublishResult>((res) =>
+        setTimeout(() => res({ status: "failed", note: "글쓰기가 15분 안에 끝나지 않아 중단했습니다. 글은 임시저장 상태로 남아 있을 수 있습니다." }), PUBLISH_CAP_MS),
+      ),
+    ]);
+    recordPost(jobId, draftId, result);
+    if (result.status === "published") {
+      log(`발행 완료: ${result.url}`, "ok");
+      setJobStage(jobId, "done", "발행됨");
+    } else if (result.status === "dry_run") {
+      log("연습 완료 — 실제로 올리지 않았습니다. 완성 화면을 저장했습니다", "ok");
+      setJobStage(jobId, "done", "연습 완료");
+    } else {
+      log(result.note, "error");
+      setJobStage(jobId, "failed", "발행 실패", result.note);
+    }
+  } catch (e) {
+    const msg = (e as Error).message || String(e);
+    log(msg, "error");
+    setJobStage(jobId, "failed", "실패", msg);
+  }
+}
+

@@ -1,0 +1,11 @@
+node_modules/
+.next/
+next-env.d.ts
+*.tsbuildinfo
+
+# 로그인 정보·DB·사진·스크린샷 — 전부 이 컴퓨터에만 둔다
+data/
+
+# 열쇠(키) 파일 — 절대 올리지 않는다
+.env.local
+.env

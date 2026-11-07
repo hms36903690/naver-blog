@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><title>harness outer</title>
+<style>
+  html,body{margin:0;height:100%}
+  header{height:50px;display:flex;gap:8px;align-items:center;padding:0 12px;background:#f3f3f3;border-bottom:1px solid #ccc}
+  iframe{display:block;width:100%;height:calc(100vh - 51px);border:0}
+  #layer{display:none;position:fixed;top:60px;right:20px;width:320px;background:#fff;border:1px solid #888;padding:14px;z-index:100;font:14px sans-serif}
+  #layer.on{display:block}
+  /* ⚠️ 7-19 재현: radio 는 opacity:0 — 눌러야 하는 건 label */
+  #layer input[type=radio]{opacity:0;width:13px;height:13px;margin:0}
+  #layer label{display:inline-block;width:58px;height:18px;cursor:pointer}
+</style></head>
+<body>
+<header>
+  <b>harness</b>
+  <span style="flex:1"></span>
+  <button class="reserve">예약 발행 0건</button>
+  <button class="publish_btn__m9KHH" data-click-area="tpb.publish" id="pubOuter">발행</button>
+</header>
+<iframe id="mainFrame" name="mainFrame"></iframe>
+<div id="layer">
+  <div id="visBox">
+    <input type="radio" name="open" id="open_public" value="2" checked><label for="open_public">전체공개</label>
+    <input type="radio" name="open" id="open_neighbor" value="1"><label for="open_neighbor">이웃공개</label><br>
+    <input type="radio" name="open" id="open_both_neighbor" value="3"><label for="open_both_neighbor">서로이웃</label>
+    <input type="radio" name="open" id="open_private" value="0"><label for="open_private">비공개</label>
+  </div>
+  <button class="confirm_btn__WEaBq" data-click-area="tpb*i.publish">발행</button>
+</div>
+<script>
+  const q = new URLSearchParams(location.search);
+  window.__reserveClicks = 0;
+  document.querySelector('.reserve').onclick = () => window.__reserveClicks++;
+  document.getElementById('mainFrame').src = 'editor.html' + location.search;
+  const layer = document.getElementById('layer');
+  if (q.get('noVisibility')) document.getElementById('visBox').remove();
+  if (q.get('publishInside')) document.getElementById('pubOuter').remove();
+  window.__openLayer = () => layer.classList.add('on');
+  document.getElementById('pubOuter')?.addEventListener('click', () => {
+    // ⚠️ 7-3 재현: 차단막이 남아 있으면 클릭이 조용히 무시된다
+    const f = document.getElementById('mainFrame').contentDocument;
+    if (f.querySelector('.se-popup-dim')) return;
+    layer.classList.add('on');
+  });
+  layer.querySelector('[data-click-area="tpb*i.publish"]').onclick = () => {
+    const c = document.querySelector('input[name=open]:checked');
+    location.href = 'https://blog.naver.com/harnessblog/223000000001?vis=' + (c ? c.id : 'none');
+  };
+</script>
+</body></html>
