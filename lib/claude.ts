@@ -11,6 +11,17 @@ import { getSettings } from "./settings";
  */
 
 const isWin = process.platform === "win32";
+
+/**
+ * 윈도우: npm 전역 바이너리는 claude.cmd 셸 심이라 셸을 거쳐야 한다.
+ * Node 24 는 shell:true 에 인자 배열을 넘기면 DEP0190 경고를 띄우므로, 윈도우에서는 한 줄 명령으로 넘긴다.
+ * 인자는 고정 플래그뿐이고(프롬프트는 stdin) 공백이 든 값만 따옴표로 감싼다.
+ */
+function spawnCli(bin: string, args: string[], opts: { cwd?: string } = {}) {
+  if (!isWin) return spawn(bin, args, { windowsHide: true, cwd: opts.cwd });
+  const q = (x: string) => (/[\s"]/.test(x) ? `"${x.replace(/"/g, "")}"` : x);
+  return spawn([q(bin), ...args.map(q)].join(" "), { shell: true, windowsHide: true, cwd: opts.cwd });
+}
 const JSON_SYSTEM =
   "반드시 유효한 JSON 만 출력하라. 설명/마크다운/코드펜스 없이 JSON 객체 또는 배열만 반환하라.";
 
@@ -51,7 +62,7 @@ function spawnClaude(bin: string, input: string, timeoutMs: number, extra: { cwd
     };
     // 윈도우: npm 전역 바이너리는 claude.cmd 셸 심이라 shell:true 가 필요하다.
     // argv 에는 고정 플래그뿐이고 프롬프트는 stdin 이라 shell:true 여도 인용부호 문제가 없다.
-    const p = spawn(bin, ["-p", "--output-format", "json", ...(extra.args ?? [])], { shell: isWin, windowsHide: true, cwd: extra.cwd });
+    const p = spawnCli(bin, ["-p", "--output-format", "json", ...(extra.args ?? [])], { cwd: extra.cwd });
     const timer = setTimeout(() => {
       p.kill("SIGKILL");
       done({ ok: false, error: `AI 응답 시간 초과(${Math.round(timeoutMs / 1000)}초)` });
@@ -176,7 +187,7 @@ export async function runClaudeJson<T>(
 
 export async function checkClaude(): Promise<{ ok: boolean; version?: string; error?: string }> {
   return new Promise((resolve) => {
-    const p = spawn(config.claudeBin, ["--version"], { shell: isWin, windowsHide: true });
+    const p = spawnCli(config.claudeBin, ["--version"]);
     let out = "";
     let err = "";
     const t = setTimeout(() => {

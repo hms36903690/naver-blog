@@ -12,10 +12,11 @@ const g = globalThis as unknown as { __pwInstall?: Promise<void> };
 function installChromium(): Promise<void> {
   return (g.__pwInstall ??= new Promise<void>((resolve, reject) => {
     console.log("[playwright] chromium 이 없어 자동 설치합니다 (1~3분)…");
-    const p = spawn("npx", ["playwright", "install", "chromium"], {
-      shell: process.platform === "win32", // 윈도우 npx.cmd 셸 심
-      stdio: "inherit",
-    });
+    // 윈도우 npx.cmd 셸 심 — 셸이 필요하고, DEP0190 경고를 피하려 한 줄 명령으로 넘긴다
+    const p =
+      process.platform === "win32"
+        ? spawn("npx playwright install chromium", { shell: true, stdio: "inherit" })
+        : spawn("npx", ["playwright", "install", "chromium"], { stdio: "inherit" });
     p.on("error", reject);
     p.on("close", (code) => (code === 0 ? resolve() : reject(new Error(`playwright install 실패 (${code})`))));
   }).catch((e) => {
