@@ -56,8 +56,12 @@ function spawnClaude(bin: string, input: string, timeoutMs: number, extra: { cwd
       p.kill("SIGKILL");
       done({ ok: false, error: `AI 응답 시간 초과(${Math.round(timeoutMs / 1000)}초)` });
     }, timeoutMs);
-    p.stdout.on("data", (d) => (stdout += d));
-    p.stderr.on("data", (d) => (stderr += d));
+    // ⚠️ 한글은 UTF-8 로 3바이트다. Buffer 조각을 그대로 += 하면 조각 경계에서 글자가 깨진다(�).
+    //   setEncoding 은 경계에 걸친 바이트를 다음 조각까지 기다렸다가 합쳐 준다.
+    p.stdout.setEncoding("utf8");
+    p.stderr.setEncoding("utf8");
+    p.stdout.on("data", (d: string) => (stdout += d));
+    p.stderr.on("data", (d: string) => (stderr += d));
     p.on("error", (e: NodeJS.ErrnoException) =>
       done({ ok: false, error: `claude 실행 실패: ${e.message}`, enoent: e.code === "ENOENT" }),
     );
@@ -76,7 +80,7 @@ function spawnClaude(bin: string, input: string, timeoutMs: number, extra: { cwd
       done({ ok: false, error: (stderr || raw || `claude 종료 코드 ${code}`).trim().slice(0, 500) });
     });
     p.stdin.on("error", () => {});
-    p.stdin.write(input);
+    p.stdin.write(input, "utf8"); // 명령 창(CP949)과 달리 앱은 항상 UTF-8 로 넘긴다
     p.stdin.end();
   });
 }
