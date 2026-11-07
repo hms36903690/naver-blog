@@ -1,7 +1,13 @@
-import Database from "better-sqlite3";
+/**
+ * ⚠️ better-sqlite3 대신 Node 내장 node:sqlite 를 쓴다.
+ *   실측: 윈도우(Node 24)에서 npm install 이 better-sqlite3 를 소스에서 빌드하려다
+ *   "Could not find any Visual Studio installation" 으로 설치 전체가 실패했다.
+ *   내장 모듈은 빌드할 것이 없어 이 문제가 원천적으로 없다(Node 22.13+).
+ */
+import { DatabaseSync } from "node:sqlite";
 import { ensureDirs, paths } from "./paths";
 
-type DB = Database.Database;
+type DB = DatabaseSync;
 
 // ⚠️ 7-17: Next.js dev 의 HMR 은 모듈을 여러 번 평가한다. globalThis 에 캐싱하지 않으면 커넥션이 계속 쌓인다.
 const g = globalThis as unknown as { __blogDb?: DB };
@@ -80,13 +86,27 @@ function migrate(db: DB) {
 export function getDb(): DB {
   if (g.__blogDb) return g.__blogDb;
   ensureDirs();
-  const db = new Database(paths.db);
+  const db = new DatabaseSync(paths.db);
   // SSE 폴링(읽기)과 파이프라인(쓰기)이 동시에 일어난다.
-  db.pragma("journal_mode = WAL");
-  db.pragma("busy_timeout = 5000");
+  db.exec("PRAGMA journal_mode = WAL");
+  db.exec("PRAGMA busy_timeout = 5000");
   migrate(db);
   g.__blogDb = db;
   return db;
+}
+
+/** BEGIN…COMMIT 로 감싼다(예외면 ROLLBACK). */
+export function transaction<T>(fn: () => T): T {
+  const db = getDb();
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    const r = fn();
+    db.exec("COMMIT");
+    return r;
+  } catch (e) {
+    db.exec("ROLLBACK");
+    throw e;
+  }
 }
 
 export type JobStatus =

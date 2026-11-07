@@ -29,7 +29,7 @@ if not exist node_modules (
   call npm install
   if errorlevel 1 (
     echo.
-    echo Download failed. Please check your internet connection and try again.
+    echo Download failed. Take a screenshot of this window and send it to Claude.
     pause
     exit /b 1
   )

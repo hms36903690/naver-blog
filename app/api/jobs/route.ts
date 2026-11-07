@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { ACTIVE_STATUSES, getDb } from "@/lib/db";
+import { ACTIVE_STATUSES, getDb, transaction } from "@/lib/db";
 import { createJob, runJob } from "@/lib/pipeline";
 import { JobInput } from "@/lib/types";
 import { hasCloudflare } from "@/config";
@@ -37,13 +37,13 @@ export async function POST(req: Request) {
 
   // ⚠️ 7-16: 버튼 연타·SSE 재연결로 같은 잡이 두 번 생긴다 → 진행 중 잡이 있으면 409
   const db = getDb();
-  const id = db.transaction(() => {
+  const id = transaction(() => {
     const active = db
       .prepare(`SELECT id FROM jobs WHERE status IN (${ACTIVE_STATUSES.map(() => "?").join(",")}) LIMIT 1`)
       .get(...ACTIVE_STATUSES) as { id: number } | undefined;
     if (active) return -active.id;
     return createJob(input);
-  })();
+  });
   if (id < 0) return NextResponse.json({ error: "이미 진행 중인 작업이 있습니다", activeJobId: -id }, { status: 409 });
 
   // fire-and-forget — 진행 상황은 SSE 로

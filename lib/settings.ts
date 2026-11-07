@@ -1,5 +1,5 @@
 import { config } from "@/config";
-import { getDb } from "./db";
+import { getDb, transaction } from "./db";
 
 import { VISIBILITIES, VISIBILITY_LABEL, type Visibility } from "./labels";
 export { VISIBILITIES, VISIBILITY_LABEL, type Visibility };
@@ -66,8 +66,8 @@ export class UnknownSettingError extends Error {}
 export function updateSettings(patch: Record<string, unknown>): Settings {
   const db = getDb();
   const up = db.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value");
-  const tx = db.transaction((entries: Array<[string, unknown]>) => {
-    for (const [k, v] of entries) {
+  transaction(() => {
+    for (const [k, v] of Object.entries(patch)) {
       if ((BOOL_KEYS as readonly string[]).includes(k)) up.run(k, String(v === true || v === "true"));
       else if ((NUM_KEYS as string[]).includes(k)) {
         const n = Number(v);
@@ -79,7 +79,6 @@ export function updateSettings(patch: Record<string, unknown>): Settings {
       } else throw new UnknownSettingError(`알 수 없는 설정: ${k}`);
     }
   });
-  tx(Object.entries(patch));
   return getSettings();
 }
 
