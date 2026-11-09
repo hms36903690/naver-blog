@@ -17,6 +17,7 @@ export type Settings = {
   claudeTimeoutSec: number;
   claudeConcurrency: number;
   tistoryBlog: string;
+  tistoryStyle: string;
 };
 export type Limits = Record<string, { min: number; max: number }>;
 
@@ -68,6 +69,17 @@ export default function SettingsDrawer(props: {
   const [err, setErr] = useState("");
   const [blog, setBlog] = useState(s.tistoryBlog);
   useEffect(() => setBlog(s.tistoryBlog), [s.tistoryBlog]);
+  const [style, setStyle] = useState(s.tistoryStyle);
+  useEffect(() => setStyle(s.tistoryStyle), [s.tistoryStyle]);
+  const [learning, setLearning] = useState<{ busy: boolean; msg?: string; err?: string }>({ busy: false });
+  async function learnStyle() {
+    setLearning({ busy: true });
+    const r = await fetch("/api/tistory/style", { method: "POST" });
+    const j = await r.json();
+    if (!r.ok) return setLearning({ busy: false, err: j.error || "실패" });
+    props.onChange(j.settings);
+    setLearning({ busy: false, msg: `최근 글 ${j.posts}편을 읽고 글투를 배웠습니다. 아래 내용은 직접 고쳐도 됩니다.` });
+  }
   const [diag, setDiag] = useState<{ busy: boolean; summary?: string[]; detail?: unknown; error?: string }>({ busy: false });
   async function diagnose() {
     setDiag({ busy: true });
@@ -207,6 +219,25 @@ export default function SettingsDrawer(props: {
             onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
           />
           {props.tistoryMessage && <p className="hint" style={{ margin: "6px 0 0" }}>{props.tistoryMessage}</p>}
+        </div>
+        <div className="set" style={{ display: "block" }}>
+          <div style={{ marginBottom: 6 }}>
+            내 블로그 글투
+            <small>내 티스토리 최근 글을 읽고 말투·구성·분량을 배워, 새 글을 그 스타일로 씁니다(문장을 베끼지는 않습니다). 로그인 없이 됩니다.</small>
+          </div>
+          <button className="btn" disabled={learning.busy || !s.tistoryBlog} onClick={learnStyle}>
+            {learning.busy ? "읽고 배우는 중… (1~2분)" : s.tistoryStyle ? "다시 배우기" : "내 블로그 글투 배우기"}
+          </button>
+          {learning.err && <p className="err">{learning.err}</p>}
+          {learning.msg && <p className="hint">{learning.msg}</p>}
+          {(s.tistoryStyle || style) && (
+            <textarea
+              style={{ marginTop: 8, minHeight: 180, fontSize: 12 }}
+              value={style}
+              onChange={(e) => setStyle(e.target.value)}
+              onBlur={() => style !== s.tistoryStyle && save({ tistoryStyle: style })}
+            />
+          )}
         </div>
         <div className="set" style={{ display: "block" }}>
           <div style={{ marginBottom: 6 }}>

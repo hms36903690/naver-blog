@@ -18,6 +18,8 @@ export type Settings = {
   claudeConcurrency: number;
   /** 티스토리 블로그 이름(예: myblog → myblog.tistory.com). 비어 있으면 티스토리 기능을 못 쓴다. */
   tistoryBlog: string;
+  /** 사장님 티스토리 최근 글에서 배운 글투 안내(앱이 만들고 사람이 고칠 수 있다). 티스토리 글에만 쓴다. */
+  tistoryStyle: string;
 };
 
 /** 숫자 설정의 범위. API 로 내려보내 UI 가 같은 규칙을 쓴다. */
@@ -67,6 +69,7 @@ export function getSettings(): Settings {
       if (Number.isFinite(n)) (s as Record<string, unknown>)[key] = clamp(key as NumKey, n);
     } else if (key === "visibility" && (VISIBILITIES as string[]).includes(value)) s.visibility = value as Visibility;
     else if (key === "tistoryBlog") s.tistoryBlog = value;
+    else if (key === "tistoryStyle") s.tistoryStyle = value;
   }
   return s;
 }
@@ -84,6 +87,8 @@ export function updateSettings(patch: Record<string, unknown>): Settings {
         const n = Number(v);
         if (!Number.isFinite(n)) throw new UnknownSettingError(`숫자가 아닙니다: ${k}`);
         up.run(k, String(clamp(k as NumKey, n)));
+      } else if (k === "tistoryStyle") {
+        up.run(k, String(v ?? "").slice(0, 4000));
       } else if (k === "tistoryBlog") {
         const b = normalizeTistoryBlog(String(v));
         if (b === null) throw new UnknownSettingError("티스토리 주소 형식이 맞지 않습니다 (예: myblog 또는 myblog.tistory.com)");

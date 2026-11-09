@@ -102,6 +102,27 @@ const setup = async (ctx: BrowserContext) => {
   const code = src.split("\n").filter((l) => !/^\s*(\*|\/\/|\/\*)/.test(l)).join("\n");
   ok("★ 코드에 발행 버튼(publish-layer-btn·완료·공개발행) 클릭 경로 없음", !/publish-layer|text-is\('완료'\)|공개\s*발행'|has-text\('발행/.test(code));
 
+  // ── 내 블로그 글투 배우기: RSS 해석 + (실제 claude 1회) 안내 생성 ──
+  const { parseRss, learnTistoryStyle } = await import("@/lib/tistory/style");
+  const post = (t: string, c: string, body: string) =>
+    `<item><title><![CDATA[${t}]]></title><category>${c}</category><pubDate>Mon, 03 Nov 2026 10:00:00 +0900</pubDate><description>${body.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</description></item>`;
+  const body = (k: string) =>
+    `<p>안녕하세요 😊 오늘은 ${k}에 대해 정리해 봤어요.</p><div class="toc"><ul><li>${k} 신청 방법</li><li>대상</li></ul></div><h2>${k} 신청 대상</h2><p>만 65세 이상이면 받을 수 있어요.</p><table><tr><td>대상</td><td>금액</td></tr></table><h2>신청 방법</h2><p>주민센터나 복지로에서 신청하면 돼요.</p><img src="x.png"><h2>마무리</h2><p>도움이 되셨다면 공감 부탁드려요 🙏</p>`;
+  const xml = `<?xml version="1.0"?><rss><channel><title>bn</title>${post("기초연금 신청 방법 총정리", "정부지원금", body("기초연금"))}${post("에너지바우처 신청 기간", "정부지원금", body("에너지바우처"))}${post("근로장려금 지급일", "생활정보", body("근로장려금"))}</channel></rss>`;
+  const ps = parseRss(xml);
+  ok("RSS: 글 3편, 제목·카테고리", ps.length === 3 && ps[0].title === "기초연금 신청 방법 총정리" && ps[0].category === "정부지원금");
+  ok("RSS: 구성 표시([H2]·[표]·[사진]·목록) 보존", /\[H2\] 기초연금 신청 대상/.test(ps[0].text) && ps[0].text.includes("[표]") && ps[0].text.includes("[사진]") && ps[0].text.includes("- 기초연금 신청 방법"));
+  const { updateSettings, getSettings } = await import("@/lib/settings");
+  updateSettings({ tistoryBlog: "harnessblog" });
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async (u: any) => {
+    if (String(u) === "https://harnessblog.tistory.com/rss") return new Response(xml, { status: 200 });
+    return realFetch(u);
+  }) as typeof fetch;
+  const learned = await learnTistoryStyle("harnessblog");
+  globalThis.fetch = realFetch;
+  ok("글투 안내 생성·저장(주제·말투·구성)", learned.posts === 3 && getSettings().tistoryStyle === learned.guide && /요/.test(learned.guide) && /(표|목차)/.test(learned.guide), learned.guide.replace(/\n/g, " / ").slice(0, 300));
+
   fs.rmSync(tmp, { recursive: true, force: true });
   console.log(fail ? `\n${fail}개 실패\n${logs.join("\n")}` : "\n전부 통과");
   process.exit(fail ? 1 : 0);

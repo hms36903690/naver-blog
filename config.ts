@@ -30,6 +30,7 @@ export const config = {
     claudeTimeoutSec: num("CLAUDE_TIMEOUT_SEC", 180),
     claudeConcurrency: num("CLAUDE_CONCURRENCY", 2),
     tistoryBlog: env("TISTORY_BLOG") || "",
+    tistoryStyle: "",
   },
 };
 

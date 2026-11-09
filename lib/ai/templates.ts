@@ -84,8 +84,11 @@ const HEADING_RULE: Record<Target, string> = {
   tistory: "- 소제목은 heading 으로 만든다(검색엔진이 읽는 H2). quote 는 꼭 필요할 때만.",
 };
 
-export function platformStyle(target: Target): string {
+export function platformStyle(target: Target, styleGuide = ""): string {
   if (target === "naver") return "";
+  const own = styleGuide.trim()
+    ? `\n\n이 블로그 고유의 글투(사장님 블로그 최근 글에서 배운 것 — 위 규칙과 겹치면 이쪽을 따르되, 문장을 베끼지는 마라):\n${styleGuide.trim()}`
+    : "";
   return `
 티스토리(구글 검색) 문체 규칙:
 - 독자는 구글에서 검색해서 들어온 사람이다. 첫 문단 2~3줄 안에 검색한 질문의 핵심 답을 먼저 준다.
@@ -93,13 +96,20 @@ export function platformStyle(target: Target): string {
 - 과장·낚시성 표현, 같은 말 반복, 키워드 나열을 하지 마라(애드센스 정책상 "가치가 낮은 글"로 보일 수 있다).
 - 마지막에 heading "자주 묻는 질문" 과, 질문 한 줄 + 답 2~3줄 문단을 2~3쌍 둔다.
 - 확인되지 않은 사실·숫자·가격은 쓰지 마라. 모르면 "직접 확인이 필요하다"고 쓴다.
-`.trim();
+`.trim() + own;
 }
 
-export function modePrompt(mode: Exclude<Mode, "auto">, topic: string, details: string, photoHint: string, target: Target = "naver") {
+export function modePrompt(
+  mode: Exclude<Mode, "auto">,
+  topic: string,
+  details: string,
+  photoHint: string,
+  target: Target = "naver",
+  styleGuide = "",
+) {
   return [
     (mode === "review" ? REVIEW : BRANDING).replace("{{HEADING_RULE}}", HEADING_RULE[target]),
-    platformStyle(target),
+    platformStyle(target, styleGuide),
     "",
     `주제: ${topic}`,
     `사용자가 준 핵심 내용:\n${details || "(없음 — 주제만으로 일반적인 내용으로 쓰되 사실을 지어내지 마라)"}`,

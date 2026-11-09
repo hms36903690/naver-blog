@@ -28,6 +28,7 @@ export async function generateDraft(
   photoSource: PhotoSource,
   onRetry?: (w: string) => void,
   target: Target = "naver",
+  styleGuide = "",
 ) {
   const prompt = `
 너는 네이버 블로그에 글을 쓰는 사람이다. 아래 글감으로 본문을 써라.
@@ -42,7 +43,7 @@ ${packSources(sources) || "(자료 없음)"}
 구성:
 - 도입(공감/후킹) → 본문(소제목 2~4구획, 소제목은 heading 으로) → 마무리(요약/행동유도)
 - 사람이 쓴 듯한 구어체. AI 티 나는 표현 금지.
-${platformStyle(target)}
+${platformStyle(target, styleGuide)}
 
 ${photoHintFor(photoSource)}
 
