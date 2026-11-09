@@ -8,11 +8,29 @@ function packSources(sources: Source[]): string {
     .join("\n\n");
 }
 
-export async function generateIdeas(keyword: string, sources: Source[], n = 5, onRetry?: (w: string) => void) {
+export async function generateIdeas(
+  keyword: string,
+  sources: Source[],
+  n = 5,
+  onRetry?: (w: string) => void,
+  target: Target = "naver",
+  styleGuide = "",
+) {
+  const forTistory =
+    target === "tistory"
+      ? `
+이 글감은 티스토리(구글 검색) 블로그용이다.
+- 제목은 사람들이 구글에 실제로 검색할 질문·문구를 자연스럽게 담는다(예: "공복혈당 110 정상인가요? 수치별 의미와 관리법").
+- 지금 화제인 것(자료 근거)과 꾸준히 검색되는 것을 섞는다.
+- 낚시성·과장 제목, 확인 안 된 숫자 금지. 건강·금융은 단정하는 표현을 피한다.
+- 이 블로그가 다루는 주제와 독자에 맞춘다:
+${styleGuide.trim() || "(글투 안내 없음)"}
+`
+      : "";
   const prompt = `
-너는 네이버 블로그 기획자다. 키워드 "${keyword}" 로 최근 수집한 자료가 아래에 있다.
-지금 사람들이 궁금해할 만한 블로그 글감 ${n}개를 만들어라. 가장 좋은 것을 첫 번째에 둬라.
-
+너는 ${target === "tistory" ? "티스토리" : "네이버"} 블로그 기획자다. 키워드 "${keyword}" 로 최근 수집한 자료가 아래에 있다.
+지금 사람들이 궁금해할 만한 블로그 글감 ${n}개를 만들어라. 가장 좋은 것을 첫 번째에 둬라. 서로 겹치지 않게.
+${forTistory}
 수집 자료:
 ${packSources(sources) || "(자료 없음 — 키워드만 보고 판단)"}
 

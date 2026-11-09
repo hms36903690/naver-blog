@@ -186,25 +186,38 @@ export async function runJob(jobId: number): Promise<void> {
 
     if (input.mode === "auto") {
       // 수집 → 글감 → 본문
-      setJobStage(jobId, "scraping", "자료 모으는 중");
-      log(`"${input.keyword}" 관련 뉴스·블로그를 모읍니다`);
-      const sources: Source[] = await scrapeTrends(input.keyword, settings.scrapeTopN, { headless: !settings.showBrowser, log });
+      let sources: Source[];
+      if (input.sources) {
+        sources = input.sources; // 제목 추천 때 모은 자료 재사용
+      } else {
+        setJobStage(jobId, "scraping", "자료 모으는 중");
+        log(`"${input.keyword}" 관련 뉴스·블로그를 모읍니다`);
+        sources = await scrapeTrends(input.keyword, settings.scrapeTopN, { headless: !settings.showBrowser, log });
+      }
       const ins = db.prepare("INSERT INTO sources (job_id, type, title, summary, url) VALUES (?,?,?,?,?)");
       for (const s of sources) ins.run(jobId, s.type, s.title, s.summary, s.url);
       if (!sources.length) log("모은 자료가 없습니다 — 키워드만으로 글감을 만듭니다", "warn");
 
-      setJobStage(jobId, "writing", "글감 고르는 중");
-      const ideas = await generateIdeas(input.keyword, sources, 5, onRetry);
-      if (!ideas.ok) throw new Error(`글감 만들기 실패: ${ideas.error}`);
       const insIdea = db.prepare("INSERT INTO ideas (job_id, title, angle, rationale, chosen) VALUES (?,?,?,?,?)");
-      ideas.data.forEach((it, i) => {
-        const r = insIdea.run(jobId, it.title, it.angle, it.rationale, i === 0 ? 1 : 0);
-        if (i === 0) ideaId = Number(r.lastInsertRowid);
-      });
-      log(`글감 ${ideas.data.length}개 중 1등: ${ideas.data[0].title}`);
+      let chosen;
+      if (input.idea) {
+        chosen = input.idea;
+        ideaId = Number(insIdea.run(jobId, chosen.title, chosen.angle, chosen.rationale, 1).lastInsertRowid);
+        log(`고른 제목으로 씁니다: ${chosen.title}`);
+      } else {
+        setJobStage(jobId, "writing", "글감 고르는 중");
+        const ideas = await generateIdeas(input.keyword, sources, 5, onRetry, target, settings.tistoryStyle);
+        if (!ideas.ok) throw new Error(`글감 만들기 실패: ${ideas.error}`);
+        ideas.data.forEach((it, i) => {
+          const r = insIdea.run(jobId, it.title, it.angle, it.rationale, i === 0 ? 1 : 0);
+          if (i === 0) ideaId = Number(r.lastInsertRowid);
+        });
+        chosen = ideas.data[0];
+        log(`글감 ${ideas.data.length}개 중 1등: ${chosen.title}`);
+      }
 
       setJobStage(jobId, "writing", "본문 쓰는 중");
-      const d = await generateDraft(input.keyword, ideas.data[0], sources, input.photoSource, onRetry, target, settings.tistoryStyle);
+      const d = await generateDraft(input.keyword, chosen, sources, input.photoSource, onRetry, target, settings.tistoryStyle);
       if (!d.ok) throw new Error(`본문 쓰기 실패: ${d.error}`);
       draft = d.data;
     } else {

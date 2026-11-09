@@ -133,6 +133,19 @@ export default function Page() {
     } catch {}
   };
   const [tsLoggingIn, setTsLoggingIn] = useState(false);
+  type Idea = { title: string; angle: string; rationale: string };
+  type Src = { type: "news" | "blog"; title: string; summary: string; url: string };
+  const [ideas, setIdeas] = useState<{ busy: boolean; list: Idea[]; sources: Src[]; err?: string; forKey?: string }>({ busy: false, list: [], sources: [] });
+  const [pickedIdea, setPickedIdea] = useState<number | null>(null);
+  async function suggest() {
+    if (!keyword.trim()) return;
+    setPickedIdea(null);
+    setIdeas({ busy: true, list: [], sources: [] });
+    const r = await fetch("/api/ideas", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ keyword, target }) });
+    const j = await r.json();
+    if (!r.ok) return setIdeas({ busy: false, list: [], sources: [], err: j.error || "추천 실패" });
+    setIdeas({ busy: false, list: j.ideas, sources: j.sources, forKey: `${keyword}|${target}` });
+  }
   const [keyword, setKeyword] = useState("");
   const [details, setDetails] = useState("");
   const [photoSource, setPhotoSource] = useState<PhotoSource>("crawl");
@@ -241,7 +254,20 @@ export default function Page() {
       const r = await fetch("/api/jobs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode, keyword, details, photoSource, imageStyle, photoFolder, photoPlacement: placement, target }),
+        body: JSON.stringify({
+          mode,
+          keyword,
+          details,
+          photoSource,
+          imageStyle,
+          photoFolder,
+          photoPlacement: placement,
+          target,
+          // 추천 목록이 있으면 고른 것(안 골랐으면 화면에 보인 1번)을 그대로 쓴다 — 다시 추천받지 않는다
+          ...(mode === "auto" && ideas.list.length && ideas.forKey === `${keyword}|${target}`
+            ? { idea: ideas.list[pickedIdea ?? 0], sources: ideas.sources }
+            : {}),
+        }),
       });
       const j = await r.json();
       if (!r.ok) {
@@ -437,6 +463,38 @@ export default function Page() {
               <span>{mode === "auto" ? "관심 키워드 (예: 제주도 여행, 홈카페)" : "주제 (예: 성수동 ○○카페 방문 후기)"}</span>
               <input type="text" value={keyword} onChange={(e) => setKeyword(e.target.value)} maxLength={200} />
             </label>
+            {mode === "auto" && (
+              <div className="stack">
+                <div className="seg">
+                  {["건강", "금융", "재테크", "생활경제"].map((k) => (
+                    <button key={k} type="button" aria-pressed={keyword === k} onClick={() => setKeyword(k)}>
+                      {k}
+                    </button>
+                  ))}
+                  <button type="button" className="btn" disabled={!keyword.trim() || ideas.busy} onClick={suggest} style={{ marginLeft: "auto" }}>
+                    {ideas.busy ? "제목 찾는 중… (1~2분)" : "제목 추천 받기"}
+                  </button>
+                </div>
+                {ideas.err && <p className="err">{ideas.err}</p>}
+                {ideas.list.length > 0 && ideas.forKey === `${keyword}|${target}` && (
+                  <div>
+                    <div className="hint" style={{ marginBottom: 6 }}>
+                      쓰고 싶은 제목을 하나 고르세요. 고르지 않으면 1번으로 씁니다.
+                    </div>
+                    <div className="stack" style={{ gap: 6 }}>
+                      {ideas.list.map((it, i) => (
+                        <button key={i} type="button" className="card" aria-pressed={pickedIdea === i} onClick={() => setPickedIdea(pickedIdea === i ? null : i)}>
+                          <b>
+                            {i + 1}. {it.title}
+                          </b>
+                          <span>{it.angle}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
             {mode !== "auto" && (
               <label className="f">
                 <span>

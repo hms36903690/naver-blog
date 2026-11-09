@@ -80,5 +80,12 @@ export const JobInput = z.object({
   photoFolder: z.string().optional().default(""),
   photoPlacement: z.enum(["order", "ai"]).optional().default("ai"),
   target: z.enum(["naver", "tistory"]).optional().default("naver"),
+  /** [제목 추천]에서 사람이 고른 글감. 있으면 자동 발굴의 "1등 자동 선택"을 건너뛴다. */
+  idea: z.object({ title: z.string().min(2).max(200), angle: z.string().max(500), rationale: z.string().max(800) }).optional(),
+  /** 제목 추천 때 모은 자료(다시 긁지 않도록 그대로 넘긴다) */
+  sources: z
+    .array(z.object({ type: z.enum(["news", "blog"]), title: z.string().max(300), summary: z.string().max(400), url: z.string().max(1000) }))
+    .max(60)
+    .optional(),
 });
 export type JobInput = z.infer<typeof JobInput>;
