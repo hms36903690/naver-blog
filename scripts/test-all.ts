@@ -98,6 +98,11 @@ async function main() {
   ok("뉴스: 같은 URL 은 하나(짧은 제목), '새 창 열림'·고객센터·광고 제외", news.length === 1 && news[0].title === "홈카페 열풍, 원두 판매 30% 증가", JSON.stringify(news.map((n) => n.title)));
   ok("블로그: 게시글만, 블로그 홈 제외", blog.length === 1 && blog[0].url.endsWith("/223456789012"));
 
+  // ── 유료 스톡 사진은 AI 판정 전에 거른다 ──
+  const { isStockUrl } = await import("@/lib/scrape/images");
+  ok("스톡 주소 거름(네이버 썸네일 안에 인코딩된 Getty 포함)", isStockUrl("https://search.pstatic.net/common/?src=https%3A%2F%2Fmedia.gettyimages.com%2Fphotos%2Fx.jpg&type=a340") && isStockUrl("https://www.istockphoto.com/a.jpg"));
+  ok("일반 블로그 사진은 통과", !isStockUrl("https://blogfiles.pstatic.net/2026/a.jpg") && !isStockUrl("https://search.pstatic.net/common/?src=https%3A%2F%2Fpostfiles.pstatic.net%2Fx.jpg"));
+
   // ── 7-24 highlight 정리 ──
   const draft = {
     title: "t",

@@ -14,7 +14,7 @@ import { saveTistoryDraft } from "./tistory/draft";
 import { verifyTistory } from "./tistory/session";
 import { paths } from "./paths";
 import { newContext } from "./playwright";
-import { findImageForSlot } from "./scrape/images";
+import { findImageForSlot, type SeenImages } from "./scrape/images";
 import { scrapeTrends } from "./scrape/trends";
 import { getSettings } from "./settings";
 import { draftSchemaFor, type Draft, type ImageStyle, type JobInput, type PhotoSource, type Source } from "./types";
@@ -131,10 +131,12 @@ export async function fillImages(
 
   // crawl
   const { browser, context } = await newContext({ headless: !s.showBrowser, useNaverSession: false });
+  const seen: SeenImages = new Map();
   try {
     for (let k = 0; k < slots.length; k++) {
       const { s: sec, i } = slots[k];
       const r = await findImageForSlot({
+        seen,
         context,
         query: sec.query,
         textContext: contextAround(draft, i),
@@ -146,7 +148,10 @@ export async function fillImages(
       });
       if (r.chosen?.localPath) out.set(i, r.chosen.localPath);
       const rej = r.tried.filter((t) => !t.ok).length;
-      log(`사진 ${k + 1}/${slots.length} "${sec.query}": ${r.chosen ? "채택" : "못 찾음"}${rej ? ` (탈락 ${rej}장)` : ""}`, r.chosen ? "info" : "warn");
+      log(
+        `사진 ${k + 1}/${slots.length} "${sec.query}": ${r.chosen ? "채택" : "못 찾음"}${rej ? ` (탈락 ${rej}장)` : ""}${r.skipped ? ` (유료·중복 ${r.skipped}장은 AI 판정 생략)` : ""}`,
+        r.chosen ? "info" : "warn",
+      );
       if (r.tried.some((t) => /판정 실패:.*limit/i.test(t.reason))) {
         log("AI 사용 한도에 걸려 남은 사진 찾기를 멈춥니다", "warn");
         break;
