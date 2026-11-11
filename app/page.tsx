@@ -150,7 +150,8 @@ export default function Page() {
   const [details, setDetails] = useState("");
   // 처음 켤 때 기본값은 "AI가 그리기"(저작권 걱정 없음). Cloudflare 열쇠가 없으면 아래에서 "사진 없음"으로 바꾼다.
   const [photoSource, setPhotoSource] = useState<PhotoSource>("ai");
-  const [imageStyle, setImageStyle] = useState<"photo" | "illust">("photo");
+  // 건강·금융 글에는 일러스트가 깔끔하고 깨진 글자도 적다(실측: 계기판류 실사 4/7, 일러스트 5/5 통과)
+  const [imageStyle, setImageStyle] = useState<"photo" | "illust">("illust");
   const [photoFolder, setPhotoFolder] = useState("");
   const [placement, setPlacement] = useState<"ai" | "order">("ai");
   const [starting, setStarting] = useState(false); // ⚠️ 7-16: 연타 방지 잠금
