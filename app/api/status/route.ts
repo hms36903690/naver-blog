@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { hasCloudflare } from "@/config";
 import { checkClaude } from "@/lib/claude";
 import { hasSessionFile, invalidateSessionCache, isLoginInFlight, verifySession } from "@/lib/naver/session";
+import { dataRoot } from "@/lib/paths";
 import { getSettings, LIMITS } from "@/lib/settings";
 import { invalidateTistoryCache, isTistoryLoginInFlight, verifyTistory } from "@/lib/tistory/session";
 
@@ -27,5 +28,6 @@ export async function GET(req: Request) {
     settings: getSettings(),
     limits: LIMITS,
     platform: process.platform,
+    dataRoot,
   });
 }

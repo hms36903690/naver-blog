@@ -26,13 +26,15 @@
 
 브라우저에서 **http://localhost:4123** 이 열리면 성공입니다. 명령어 창은 켜둔 채로 두세요.
 
-## 새 버전으로 업데이트하기
+## 새 버전으로 바꾸기
 
 1. 앱이 켜진 검은 창을 닫습니다.
-2. 브라우저로 새 버전을 내려받습니다(다운로드 폴더에 저장): https://github.com/hms36903690/naver-blog/archive/refs/heads/main.zip
-   다운로드 폴더에서 **압축 풀기**를 해도 되고, 그대로 둬도 됩니다(`update` 가 가장 최근 것을 알아서 씁니다).
-3. 앱 폴더의 **`update`** 를 더블클릭합니다. 로그인 정보·글투·열쇠(`data`, `.env.local`)는 그대로 둡니다.
-4. 끝나면 **`start`** 를 더블클릭합니다.
+2. 새 버전을 내려받아 **압축 풀기**를 합니다: https://github.com/hms36903690/naver-blog/archive/refs/heads/main.zip
+3. 풀린 폴더 안의 **`start`** 를 더블클릭합니다. (처음 켤 때 필요한 프로그램을 받느라 몇 분 걸립니다.)
+
+로그인 정보·글투·사진·열쇠는 앱 폴더가 아니라 **사용자 폴더의 `naver-blog-data`** (예: `C:\Users\이름\naver-blog-data`)에 있어서,
+새 폴더에서 켜도 그대로 이어집니다. 예전 버전(앱 폴더 안 `data`)을 쓰던 경우, 새 버전을 처음 켤 때 바탕화면·다운로드·문서에서
+예전 앱 폴더를 찾아 자동으로 복사해 옵니다(원본은 그대로 둡니다). 열쇠 파일은 `naver-blog-data\.env.local` 에 둡니다.
 
 ## 쓰는 순서
 
@@ -59,7 +61,7 @@
 ## (선택) AI 사진 생성 — Cloudflare 열쇠
 
 안 해도 앱은 다 돌아갑니다(사진 검색·내 사진·사진 없음).
-쓰려면 `env.sample` 을 복사해 `.env.local` 을 만들고 값을 채운 뒤 앱을 껐다 켜세요.
+쓰려면 `env.sample` 을 복사해 사용자 폴더의 `naver-blog-data\.env.local` 로 만들고 값을 채운 뒤 앱을 껐다 켜세요.
 
 - 맥: `cp env.sample .env.local`
 - 윈도우: `copy env.sample .env.local`

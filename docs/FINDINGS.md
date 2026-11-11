@@ -13,6 +13,12 @@
 | N-6 | (잠재) 긴 한글 응답 중간 글자 깨짐(�) | — | stdout Buffer 조각을 그대로 `+=` 하면 UTF-8 3바이트가 조각 경계에서 잘림 | `stdout.setEncoding("utf8")` | `lib/claude.ts` |
 | N-7 | 사용자 PC 에 `claude` 명령이 안 생김 | — | 최신 npm 은 설치 스크립트를 기본 차단 → claude-code 의 postinstall 미실행 | `npm install -g --allow-scripts=@anthropic-ai/claude-code @anthropic-ai/claude-code` | README |
 
+## 데이터 위치
+
+- 사용자 요청: "새 압축 파일을 풀고 start 만 누르면 되게". 앱 폴더 안 ./data 는 새로 푼 폴더마다 비어 로그인·글투·열쇠가 사라졌다.
+  → 데이터와 열쇠 파일을 **사용자 폴더/naver-blog-data** 로 옮겼다. 새 버전 첫 실행 때 바탕화면·다운로드·문서(깊이 3)에서
+  예전 앱 폴더(package.json name=naver-blog-auto + data/app.db)를 찾아 가장 최근 것을 복사한다(원본 보존).
+
 ## 업데이트
 
 - `update.bat`: 다운로드 폴더의 최신 `naver-blog-main*.zip` 을 풀어 덮어쓰고 `data`·`.env.local`·`node_modules` 는 건드리지 않는다.

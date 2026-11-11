@@ -12,6 +12,7 @@ type Status = {
   settings: Settings;
   limits: Limits;
   platform: string;
+  dataRoot?: string;
 };
 type Usage = {
   publishedToday: number;
@@ -748,6 +749,7 @@ export default function Page() {
           settings={status.settings}
           limits={status.limits}
           tistoryMessage={status.tistory.message}
+          dataRoot={status.dataRoot}
           onChange={(ns) => {
             setStatus({ ...status, settings: ns });
             loadUsage();

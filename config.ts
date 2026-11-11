@@ -1,4 +1,8 @@
 // 전역 기본값. 환경변수는 "최초 기본값"으로만 쓰이고, 이후엔 DB(settings 테이블) 값이 우선한다.
+import { loadDataEnv } from "./lib/paths";
+
+// 열쇠 파일은 데이터 폴더(사용자 폴더/naver-blog-data/.env.local)에 둔다 — 새 버전 폴더에서도 그대로 읽힌다.
+loadDataEnv();
 const env = (k: string) => process.env[k];
 const num = (k: string, d: number) => {
   const v = Number(env(k));

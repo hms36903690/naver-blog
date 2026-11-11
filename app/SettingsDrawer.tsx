@@ -64,6 +64,7 @@ export default function SettingsDrawer(props: {
   limits: Limits;
   onChange: (s: Settings) => void;
   tistoryMessage?: string;
+  dataRoot?: string;
 }) {
   const { settings: s, limits } = props;
   const [err, setErr] = useState("");
@@ -261,6 +262,13 @@ export default function SettingsDrawer(props: {
           )}
         </div>
 
+        {props.dataRoot && (
+          <p className="hint" style={{ marginTop: 20 }}>
+            내 정보(로그인·글·사진·열쇠) 저장 위치: <b>{props.dataRoot}</b>
+            <br />
+            새 버전을 받아 어디에 풀어도 이 정보를 그대로 씁니다. 이 폴더는 지우지 마세요.
+          </p>
+        )}
         <p style={{ marginTop: 24 }}>
           <button className="btn" onClick={() => confirm("모든 설정을 처음 값으로 되돌릴까요?") && save({ reset: true })}>
             기본값으로 되돌리기
