@@ -319,7 +319,7 @@ export default function Page() {
 
   async function tistoryLogin() {
     setTsLoggingIn(true);
-    setLoginMsg("새 창에서 티스토리(카카오)에 로그인해 주세요.");
+    setLoginMsg("새 창에서 카카오 계정으로 로그인해 주세요. 카카오 로그인 화면의 \"로그인 상태 유지\"를 꼭 체크해 주세요.");
     try {
       const r = await fetch("/api/tistory/login", { method: "POST" });
       const j = await r.json();
@@ -442,7 +442,7 @@ export default function Page() {
                   </>
                 ) : (
                   <>
-                    {status.tistory.state === "none" ? "" : `${status.tistory.message} `}위쪽 <b>[티스토리 로그인]</b>을 눌러 새 창에서 카카오 계정으로 로그인해 주세요.
+                    {status.tistory.state === "none" ? "" : `${status.tistory.message} `}위쪽 <b>[티스토리 로그인]</b>을 눌러 새 창에서 카카오 계정으로 로그인해 주세요. <b>카카오 로그인 화면의 &quot;로그인 상태 유지&quot;를 체크</b>하면 오래 유지됩니다.
                   </>
                 )}
                 {loginMsg && <><br />{loginMsg}</>}
