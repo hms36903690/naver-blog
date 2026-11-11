@@ -33,6 +33,12 @@ a { color: var(--act); }
 .rail-title { font-weight: 700; color: var(--sig); font-size: 17px; }
 .rail-sub { color: var(--dim); font-size: 13px; }
 .rail-spacer { flex: 1; }
+.modeswitch { display: flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; margin-left: 8px; }
+.modeswitch button { background: var(--panel2); border: 0; padding: 7px 14px; cursor: pointer; font-size: 14px; color: var(--dim); }
+.modeswitch button[aria-pressed="true"]:first-child { background: var(--safe); color: #0b0d10; font-weight: 700; }
+.modeswitch button[aria-pressed="true"]:last-child { background: var(--armed); color: #0b0d10; font-weight: 700; }
+.modeswitch button:disabled { opacity: .6; }
+@media (max-width: 700px) { .rail { flex-wrap: wrap; } }
 .dots { display: flex; gap: 14px; align-items: center; font-size: 13px; color: var(--dim); }
 .dot { display: inline-flex; align-items: center; gap: 6px; }
 .dot i { width: 9px; height: 9px; border-radius: 50%; background: var(--faint); display: inline-block; }

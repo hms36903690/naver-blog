@@ -223,14 +223,16 @@ export default function Page() {
 
   const s = status?.settings;
   const sig = !s ? "safe" : s.killSwitch ? "armed" : s.dryRun ? "safe" : "armed";
-  const railTitle = !s ? "불러오는 중…" : s.killSwitch ? "전체 중단" : s.dryRun ? "연습 모드" : "실제 발행";
+  const railTitle = !s ? "불러오는 중…" : s.killSwitch ? "전체 중단" : s.dryRun ? "연습 모드" : target === "tistory" ? "실제 모드 (티스토리 임시저장)" : "실제 발행";
   const railSub = !s
     ? ""
     : s.killSwitch
       ? "어떤 작업도 발행되지 않습니다"
       : s.dryRun
         ? "발행하지 않고 완성 화면만 저장합니다"
-        : "완성되는 글이 블로그에 그대로 올라갑니다";
+        : target === "tistory"
+          ? "티스토리에 임시저장합니다 — 발행은 직접 하세요"
+          : "완성되는 글이 블로그에 그대로 올라갑니다";
   const isTs = target === "tistory";
   const goLabel = s?.dryRun ? "연습으로 만들기" : isTs ? "글 만들고 티스토리에 임시저장" : "글 만들고 발행하기";
   const tsOk = status?.tistory.state === "valid";
@@ -279,6 +281,26 @@ export default function Page() {
       setSelected(j.id);
     } finally {
       setStarting(false);
+    }
+  }
+
+  /** 맨 위 줄에서 연습 ↔ 실제 전환. 실제로 바꿀 때만 한 번 확인한다(되돌릴 수 없는 쪽). */
+  const [switching, setSwitching] = useState(false);
+  async function toggleDryRun() {
+    if (!status || switching) return;
+    const toReal = status.settings.dryRun;
+    if (toReal) {
+      const where = isTs
+        ? "티스토리에는 임시저장까지만 합니다(발행은 직접)."
+        : `네이버 블로그에는 "${VISIBILITY_LABEL[status.settings.visibility]}"로 실제 발행됩니다. 되돌릴 수 없습니다.`;
+      if (!confirm(`실제 모드로 바꿀까요?\n${where}`)) return;
+    }
+    setSwitching(true);
+    try {
+      const r = await fetch("/api/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ dryRun: !toReal }) });
+      if (r.ok) setStatus({ ...status, settings: (await r.json()).settings });
+    } finally {
+      setSwitching(false);
     }
   }
 
@@ -336,6 +358,16 @@ export default function Page() {
           <div className="rail-title">{railTitle}</div>
           <div className="rail-sub">{railSub}</div>
         </div>
+        {s && !s.killSwitch && (
+          <div className="modeswitch" role="group" aria-label="연습 모드 / 실제 모드">
+            <button type="button" aria-pressed={s.dryRun} disabled={switching} onClick={() => !s.dryRun && toggleDryRun()}>
+              연습 모드
+            </button>
+            <button type="button" aria-pressed={!s.dryRun} disabled={switching} onClick={() => s.dryRun && toggleDryRun()}>
+              실제 모드
+            </button>
+          </div>
+        )}
         <div className="rail-spacer" />
         <div className="dots">
           <span className="dot" data-ok={status ? (status.claude.ok ? "1" : "0") : ""} title={status?.claude.version || status?.claude.error}>
