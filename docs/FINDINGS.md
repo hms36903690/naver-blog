@@ -13,6 +13,11 @@
 | N-6 | (잠재) 긴 한글 응답 중간 글자 깨짐(�) | — | stdout Buffer 조각을 그대로 `+=` 하면 UTF-8 3바이트가 조각 경계에서 잘림 | `stdout.setEncoding("utf8")` | `lib/claude.ts` |
 | N-7 | 사용자 PC 에 `claude` 명령이 안 생김 | — | 최신 npm 은 설치 스크립트를 기본 차단 → claude-code 의 postinstall 미실행 | `npm install -g --allow-scripts=@anthropic-ai/claude-code @anthropic-ai/claude-code` | README |
 
+## 업데이트
+
+- `update.bat`: 다운로드 폴더의 최신 `naver-blog-main*.zip` 을 풀어 덮어쓰고 `data`·`.env.local`·`node_modules` 는 건드리지 않는다.
+  **사용자 PC(윈도우 10, 한글 사용자 폴더 `C:\Users\사용자`)에서 동작 확인**(2026-11-12).
+
 ## 티스토리 반자동 (명세 밖 추가 기능)
 
 - 원칙: 이미 애드센스 승인을 받은 블로그를 지키기 위해 **임시저장까지만**. 발행 버튼 셀렉터는 코드에 두지 않고, 테스트가 이를 정적으로 검사한다.
