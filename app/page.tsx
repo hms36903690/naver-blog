@@ -148,7 +148,8 @@ export default function Page() {
   }
   const [keyword, setKeyword] = useState("");
   const [details, setDetails] = useState("");
-  const [photoSource, setPhotoSource] = useState<PhotoSource>("crawl");
+  // 처음 켤 때 기본값은 "AI가 그리기"(저작권 걱정 없음). Cloudflare 열쇠가 없으면 아래에서 "사진 없음"으로 바꾼다.
+  const [photoSource, setPhotoSource] = useState<PhotoSource>("ai");
   const [imageStyle, setImageStyle] = useState<"photo" | "illust">("photo");
   const [photoFolder, setPhotoFolder] = useState("");
   const [placement, setPlacement] = useState<"ai" | "order">("ai");
@@ -216,6 +217,14 @@ export default function Page() {
       es?.close();
     };
   }, [selected, loadDetail, loadJobs, loadUsage]);
+
+  // 열쇠가 없으면 AI 그리기를 쓸 수 없으므로 처음 한 번만 "사진 없음"으로
+  const photoDefaultChecked = useRef(false);
+  useEffect(() => {
+    if (!status || photoDefaultChecked.current) return;
+    photoDefaultChecked.current = true;
+    if (!status.cloudflare.configured) setPhotoSource((p) => (p === "ai" ? "none" : p));
+  }, [status]);
 
   useEffect(() => {
     logBox.current?.scrollTo({ top: logBox.current.scrollHeight });
