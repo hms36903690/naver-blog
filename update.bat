@@ -1,5 +1,5 @@
 @echo off
-rem Update the app from the newest naver-blog-main*.zip in your Downloads folder.
+rem Update the app from the newest naver-blog-main download (unzipped folder or zip) in Downloads.
 rem Keeps your data folder (logins, posts, learned style) and .env.local (keys) untouched.
 rem (ASCII + CRLF on purpose: UTF-8 Korean text made cmd close instantly on Windows 10.)
 cd /d "%~dp0"
@@ -15,36 +15,46 @@ pause
 set "PORTABLE_NODE=%LOCALAPPDATA%\Programs\node-v24.20.0-win-x64"
 if exist "%PORTABLE_NODE%\node.exe" set "PATH=%PORTABLE_NODE%;%PATH%"
 
-set "ZIP="
-for /f "delims=" %%F in ('dir /b /o-d "%USERPROFILE%\Downloads\naver-blog-main*.zip" 2^>nul') do (
-  if not defined ZIP set "ZIP=%USERPROFILE%\Downloads\%%F"
+rem Newest "naver-blog-main..." item in Downloads: an unzipped folder OR the zip file.
+set "PICK="
+for /f "delims=" %%F in ('dir /b /o-d "%USERPROFILE%\Downloads\naver-blog-main*" 2^>nul') do (
+  if not defined PICK set "PICK=%USERPROFILE%\Downloads\%%F"
 )
-if not defined ZIP (
-  echo No naver-blog-main zip file found in your Downloads folder.
+if not defined PICK (
+  echo No naver-blog-main download found in your Downloads folder.
   echo Download it first:
   echo   https://github.com/hms36903690/naver-blog/archive/refs/heads/main.zip
   pause
   exit /b 1
 )
-echo Using: %ZIP%
+echo Using: %PICK%
 
+set "SRC="
 set "TMPDIR=%TEMP%\naver-blog-update"
-if exist "%TMPDIR%" rmdir /s /q "%TMPDIR%"
-powershell -NoProfile -Command "Expand-Archive -LiteralPath $env:ZIP -DestinationPath $env:TMPDIR -Force"
-if not exist "%TMPDIR%\naver-blog-main\package.json" (
-  echo Could not unpack the zip file. Take a screenshot of this window and send it to Claude.
+if exist "%PICK%\" (
+  rem Unzipped folder: Windows "Extract All" usually makes naver-blog-main\naver-blog-main
+  if exist "%PICK%\package.json" set "SRC=%PICK%"
+  if exist "%PICK%\naver-blog-main\package.json" set "SRC=%PICK%\naver-blog-main"
+) else (
+  if exist "%TMPDIR%" rmdir /s /q "%TMPDIR%"
+  powershell -NoProfile -Command "Expand-Archive -LiteralPath $env:PICK -DestinationPath $env:TMPDIR -Force"
+  if exist "%TMPDIR%\naver-blog-main\package.json" set "SRC=%TMPDIR%\naver-blog-main"
+)
+if not defined SRC (
+  echo Could not find the app files in: %PICK%
+  echo Take a screenshot of this window and send it to Claude.
   pause
   exit /b 1
 )
 
 rem Copy new files over this folder, but never data, .env.local, node_modules, .next
-robocopy "%TMPDIR%\naver-blog-main" "%~dp0." /E /NFL /NDL /NJH /NJS /NP /XD data node_modules .next /XF .env.local
+robocopy "%SRC%" "%~dp0." /E /NFL /NDL /NJH /NJS /NP /XD data node_modules .next /XF .env.local
 if errorlevel 8 (
   echo Copy failed. Take a screenshot of this window and send it to Claude.
   pause
   exit /b 1
 )
-rmdir /s /q "%TMPDIR%"
+if exist "%TMPDIR%" rmdir /s /q "%TMPDIR%"
 if exist .next rmdir /s /q .next
 
 echo.
