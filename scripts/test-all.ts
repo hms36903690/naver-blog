@@ -82,7 +82,8 @@ async function main() {
   const ins = db.prepare("INSERT INTO posts (job_id, status, created_at) VALUES (1, ?, datetime(?, 'utc'))");
   ins.run("draft_saved", `${monday.d} 01:30:00`); // 월요일 새벽(로컬) — UTC 로는 전날
   ins.run("draft_unverified", `${monday.d} 12:00:00`);
-  ins.run("draft_saved", db.prepare("SELECT date(?, '-1 day') d").get(monday.d) && `${(db.prepare("SELECT date(?, '-1 day') d").get(monday.d) as { d: string }).d} 22:00:00`); // 지난주 일요일
+  const lastSunday = (db.prepare("SELECT date(?, '-1 day') d").get(monday.d) as { d: string }).d;
+  ins.run("draft_saved", `${lastSunday} 22:00:00`); // 지난주 일요일
   ins.run("dry_run", `${monday.d} 13:00:00`); // 연습은 안 셈
   ok("이번 주 티스토리 임시저장 수 = 2 (월요일 새벽 포함, 지난주·연습 제외)", countTistoryDraftsThisWeek() === 2, `월요일 ${monday.d}, 셈 ${countTistoryDraftsThisWeek()}`);
   ok("주간 기본값 3편", getSettings().tistoryWeeklyLimit === 3);
