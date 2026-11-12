@@ -394,16 +394,23 @@ export default function Page() {
             <i /> 이미지 생성
           </span>
         </div>
-        {s?.tistoryBlog && (
-          <span className="row" style={{ gap: 6 }}>
-            <a className="btn" href={`https://${s.tistoryBlog}.tistory.com/`} target="_blank" rel="noreferrer" title="내 티스토리 블로그를 새 탭으로 엽니다">
-              내 티스토리 ↗
-            </a>
+        <span className="row" style={{ gap: 6 }}>
+          {/* MyBlog.naver 는 브라우저에 로그인된 네이버 계정의 내 블로그로 바로 간다 */}
+          <a
+            className="btn"
+            href={status?.naver.blogId ? `https://blog.naver.com/${status.naver.blogId}` : "https://blog.naver.com/MyBlog.naver"}
+            target="_blank"
+            rel="noreferrer"
+            title="내 네이버 블로그를 새 탭으로 엽니다"
+          >
+            네이버 블로그 ↗
+          </a>
+          {s?.tistoryBlog && (
             <a className="btn" href={`https://${s.tistoryBlog}.tistory.com/manage/newpost/`} target="_blank" rel="noreferrer" title="티스토리 글쓰기 화면 — 아래쪽 '임시저장' 옆 숫자를 누르면 저장된 글 목록이 열립니다">
               티스토리 글쓰기 ↗
             </a>
-          </span>
-        )}
+          )}
+        </span>
         {isTs ? (
           <button className="btn" onClick={tistoryLogin} disabled={tsLoggingIn || !s?.tistoryBlog} title={!s?.tistoryBlog ? "설정에서 티스토리 주소를 먼저 넣어주세요" : ""}>
             {tsLoggingIn ? "로그인 창 열림…" : tsOk ? "티스토리 다시 로그인" : "티스토리 로그인"}
