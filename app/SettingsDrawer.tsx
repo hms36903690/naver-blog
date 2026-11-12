@@ -262,16 +262,6 @@ export default function SettingsDrawer(props: {
           )}
         </div>
 
-        <h3>새 버전</h3>
-        <div className="set" style={{ display: "block" }}>
-          <div style={{ marginBottom: 6 }}>
-            새 버전 받기
-            <small>누르면 새 버전 압축 파일이 바로 내려받아집니다. 앱을 끄고(검은 창 닫기) → 압축 풀기 → 풀린 폴더의 start 를 누르세요.</small>
-          </div>
-          <a className="btn" href="https://github.com/hms36903690/naver-blog/archive/refs/heads/main.zip">
-            새 버전 받기 ⬇
-          </a>
-        </div>
         {props.dataRoot && (
           <p className="hint" style={{ marginTop: 20 }}>
             내 정보(로그인·글·사진·열쇠) 저장 위치: <b>{props.dataRoot}</b>
