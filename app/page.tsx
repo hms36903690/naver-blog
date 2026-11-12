@@ -378,7 +378,6 @@ export default function Page() {
   const naverDot = status ? (naverOk ? "1" : status.naver.state === "none" ? "" : "0") : "";
   const pubRatio = usage ? usage.publishedToday / Math.max(1, usage.dailyLimit) : 0;
   const neuRatio = usage ? usage.neurons / usage.neuronsLimit : 0;
-  const tsRatio = usage?.tistoryWeeklyLimit ? (usage.tistoryThisWeek ?? 0) / usage.tistoryWeeklyLimit : 0;
 
   return (
     <>
@@ -445,22 +444,6 @@ export default function Page() {
 
       <main className="wrap">
         <section className="meters" aria-label="계량기">
-          {isTs ? (
-            <div className="meter" data-level={meterLevel(tsRatio)}>
-              <div className="hint">이번 주 티스토리</div>
-              <div className="big num">
-                {usage?.tistoryThisWeek ?? "–"} / {usage?.tistoryWeeklyLimit ?? "–"}편
-              </div>
-              <div className="bar">
-                <span style={{ width: `${Math.min(100, tsRatio * 100)}%` }} />
-              </div>
-              <div className="sub">
-                {usage && (usage.tistoryThisWeek ?? 0) >= (usage.tistoryWeeklyLimit ?? 3)
-                  ? "이번 주 글을 다 채웠습니다 — 다음 주 월요일부터 다시 만들 수 있습니다"
-                  : "월·수·금처럼 나눠 발행하세요 (하루 1편까지)"}
-              </div>
-            </div>
-          ) : (
           <div className="meter" data-level={meterLevel(pubRatio)}>
             <div className="hint">오늘 발행</div>
             <div className="big num">
@@ -475,7 +458,6 @@ export default function Page() {
                 : `발행 사이 최소 ${usage?.minIntervalMin ?? "–"}분 간격`}
             </div>
           </div>
-          )}
           <div className="meter" data-level={meterLevel(neuRatio)}>
             <div className="hint">이미지 생성량</div>
             <div className="big num">
