@@ -23,6 +23,9 @@ export type ImageStyle = "photo" | "illust";
 export type Mode = "auto" | "review" | "branding";
 /** 올릴 곳. 티스토리는 "임시저장까지만"(반자동) — 발행은 사람이 직접 한다. */
 export type Target = "naver" | "tistory";
+/** 블로그 카테고리(사용자 지정) — 카테고리마다 글의 목적이 다르다 */
+export type Category = "life" | "money" | "health";
+export const CATEGORY_LABEL: Record<Category, string> = { life: "생활정보", money: "금융·재테크", health: "보험·건강" };
 
 const countImages = (d: Draft) => d.sections.filter((s) => s.type === "image").length;
 
@@ -31,13 +34,29 @@ const countImages = (d: Draft) => d.sections.filter((s) => s.type === "image").l
  * local 에 "6개 이상"을 걸면 사진이 4장뿐일 때 애초에 만들 수 없어 재시도만 3번 돌다 실패한다.
  * (highlight 는 여기서 반려 사유로 쓰지 않는다 → sanitizeDraft 에서 개별로 떨어뜨림, 7-24)
  */
-export function draftSchemaFor(photoSource: PhotoSource, localCount = 0) {
+/** 본문 글자 수(공백 포함) — 제목·사진 설명 제외, 문단·소제목·인용만 */
+export const bodyChars = (d: Draft) =>
+  d.sections.reduce((n, s) => n + (s.type === "paragraph" || s.type === "heading" || s.type === "quote" ? s.text.length : 0), 0);
+
+/**
+ * 티스토리 글 기준(사용자 지정): 본문 1,500~2,000자, 사진 2~4장.
+ * AI 는 분량을 정확히 못 맞추므로 검증은 여유를 둔다(1,300~2,300). 벗어나면 재시도.
+ */
+export const TISTORY_RULES = { minChars: 1500, maxChars: 2000, checkMin: 1300, checkMax: 2300, minImages: 2, maxImages: 4 };
+
+export function draftSchemaFor(photoSource: PhotoSource, localCount = 0, target: Target = "naver") {
+  const lengthOk = (d: Draft) => target !== "tistory" || (bodyChars(d) >= TISTORY_RULES.checkMin && bodyChars(d) <= TISTORY_RULES.checkMax);
+  const lengthMsg = { message: `본문(문단·소제목) 글자 수를 ${TISTORY_RULES.minChars}~${TISTORY_RULES.maxChars}자로 맞춰라.` };
   if (photoSource === "none")
-    return DraftBase.refine((d) => countImages(d) === 0, { message: "사진 없음 모드인데 image 섹션이 있습니다. image 섹션을 빼세요." });
+    return DraftBase.refine((d) => countImages(d) === 0, { message: "사진 없음 모드인데 image 섹션이 있습니다. image 섹션을 빼세요." }).refine(lengthOk, lengthMsg);
   if (photoSource === "local")
     return DraftBase.refine((d) => countImages(d) === localCount, {
       message: `image 섹션이 정확히 ${localCount}개여야 합니다.`,
-    });
+    }).refine(lengthOk, lengthMsg);
+  if (target === "tistory")
+    return DraftBase.refine((d) => countImages(d) >= TISTORY_RULES.minImages && countImages(d) <= TISTORY_RULES.maxImages, {
+      message: `image 섹션이 ${TISTORY_RULES.minImages}~${TISTORY_RULES.maxImages}개여야 합니다.`,
+    }).refine(lengthOk, lengthMsg);
   return DraftBase.refine((d) => countImages(d) >= 6, { message: "image 섹션이 6개 이상이어야 합니다." });
 }
 
@@ -80,6 +99,7 @@ export const JobInput = z.object({
   photoFolder: z.string().optional().default(""),
   photoPlacement: z.enum(["order", "ai"]).optional().default("ai"),
   target: z.enum(["naver", "tistory"]).optional().default("naver"),
+  category: z.enum(["life", "money", "health"]).optional(),
   /** [제목 추천]에서 사람이 고른 글감. 있으면 자동 발굴의 "1등 자동 선택"을 건너뛴다. */
   idea: z.object({ title: z.string().min(2).max(200), angle: z.string().max(500), rationale: z.string().max(800) }).optional(),
   /** 제목 추천 때 모은 자료(다시 긁지 않도록 그대로 넘긴다) */

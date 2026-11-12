@@ -134,6 +134,17 @@ export function countPublishedToday(): number {
   return r.n;
 }
 
+/** 이번 주(월~일, 로컬 날짜) 티스토리에 임시저장한 글 수. ⚠️ 7-22: 양쪽 다 localtime. */
+export function countTistoryDraftsThisWeek(): number {
+  const r = getDb()
+    .prepare(
+      `SELECT COUNT(*) n FROM posts WHERE status IN ('draft_saved','draft_unverified')
+       AND date(created_at,'localtime') >= date('now','localtime','weekday 0','-6 days')`,
+    )
+    .get() as { n: number };
+  return r.n;
+}
+
 export function lastPublishedAt(): Date | null {
   const r = getDb()
     .prepare("SELECT published_at FROM posts WHERE status='published' AND published_at IS NOT NULL ORDER BY published_at DESC LIMIT 1")

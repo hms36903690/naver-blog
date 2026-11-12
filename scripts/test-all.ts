@@ -75,6 +75,19 @@ async function main() {
   ok("가드: 조건 다 통과하면 허용", !checkPublishGuard({ ...base, dailyPublishLimit: 10, minPublishIntervalMin: 3 }).blocked);
   db.prepare("DELETE FROM posts").run();
 
+  // ── 티스토리 주 3회: 이번 주(월~일, 로컬)만 센다 ──
+  const { countTistoryDraftsThisWeek } = await import("@/lib/db");
+  db.prepare("DELETE FROM posts").run();
+  const monday = db.prepare("SELECT date('now','localtime','weekday 0','-6 days') d").get() as { d: string };
+  const ins = db.prepare("INSERT INTO posts (job_id, status, created_at) VALUES (1, ?, datetime(?, 'utc'))");
+  ins.run("draft_saved", `${monday.d} 01:30:00`); // 월요일 새벽(로컬) — UTC 로는 전날
+  ins.run("draft_unverified", `${monday.d} 12:00:00`);
+  ins.run("draft_saved", db.prepare("SELECT date(?, '-1 day') d").get(monday.d) && `${(db.prepare("SELECT date(?, '-1 day') d").get(monday.d) as { d: string }).d} 22:00:00`); // 지난주 일요일
+  ins.run("dry_run", `${monday.d} 13:00:00`); // 연습은 안 셈
+  ok("이번 주 티스토리 임시저장 수 = 2 (월요일 새벽 포함, 지난주·연습 제외)", countTistoryDraftsThisWeek() === 2, `월요일 ${monday.d}, 셈 ${countTistoryDraftsThisWeek()}`);
+  ok("주간 기본값 3편", getSettings().tistoryWeeklyLimit === 3);
+  db.prepare("DELETE FROM posts").run();
+
   // ── 경로 탈출 방지 + NFC (7-23) ──
   ok("data 안 파일 허용", isInsideData(path.join(dataRoot, "images", "a.png")));
   ok("/etc/passwd 거절", !isInsideData("/etc/passwd"));
@@ -120,6 +133,22 @@ async function main() {
   ok("crawl/ai: 이미지 6개 이상", !draftSchemaFor("crawl").safeParse(mk(5)).success && draftSchemaFor("ai").safeParse(mk(6)).success);
   ok("local: 정확히 사진 장수", draftSchemaFor("local", 4).safeParse(mk(4)).success && !draftSchemaFor("local", 4).safeParse(mk(6)).success);
   ok("none: 이미지 0개", draftSchemaFor("none").safeParse(mk(0)).success && !draftSchemaFor("none").safeParse(mk(1)).success);
+
+  // ── 티스토리 기준: 본문 1,500~2,000자(검증 1,300~2,300), 사진 2~4장 ──
+  const { bodyChars } = await import("@/lib/types");
+  const mkT = (chars: number, imgs: number) => ({
+    title: "제목",
+    sections: [
+      ...Array.from({ length: 10 }, () => ({ type: "paragraph", text: "가".repeat(Math.round(chars / 10)) })),
+      ...Array.from({ length: imgs }, () => ({ type: "image", query: "q" })),
+    ],
+  });
+  ok("티스토리: 1,700자·사진 3장 통과", draftSchemaFor("ai", 0, "tistory").safeParse(mkT(1700, 3)).success);
+  ok("티스토리: 사진 6장은 반려(2~4장)", !draftSchemaFor("ai", 0, "tistory").safeParse(mkT(1700, 6)).success);
+  ok("티스토리: 3,000자는 반려", !draftSchemaFor("ai", 0, "tistory").safeParse(mkT(3000, 3)).success);
+  ok("티스토리: 사진 없음이면 0장 + 분량 검사", draftSchemaFor("none", 0, "tistory").safeParse(mkT(1600, 0)).success && !draftSchemaFor("none", 0, "tistory").safeParse(mkT(900, 0)).success);
+  ok("네이버는 기존대로(6장 이상, 분량 제한 없음)", draftSchemaFor("ai").safeParse(mkT(3000, 6)).success);
+  ok("본문 글자 수 계산", bodyChars(mkT(1700, 3) as never) === 1700);
 
   // ── 7-8 마크다운 무력화 ──
   const md = "정말 좋았어요~~ **진짜** `코드`\n# 제목\n> 인용\n- 목록\n물결~ 하나";

@@ -1,5 +1,5 @@
 import { runClaudeJson } from "../claude";
-import { draftSchemaFor, IdeaList, type Draft, type Idea, type PhotoSource, type Source, type Target } from "../types";
+import { CATEGORY_LABEL, draftSchemaFor, IdeaList, type Category, type Draft, type Idea, type PhotoSource, type Source, type Target } from "../types";
 import { photoHintFor, platformStyle, SECTION_FORMAT } from "./templates";
 
 function packSources(sources: Source[]): string {
@@ -15,6 +15,7 @@ export async function generateIdeas(
   onRetry?: (w: string) => void,
   target: Target = "naver",
   styleGuide = "",
+  category?: Category,
 ) {
   const forTistory =
     target === "tistory"
@@ -23,7 +24,7 @@ export async function generateIdeas(
 - 제목은 사람들이 구글에 실제로 검색할 질문·문구를 자연스럽게 담는다(예: "공복혈당 110 정상인가요? 수치별 의미와 관리법").
 - 지금 화제인 것(자료 근거)과 꾸준히 검색되는 것을 섞는다.
 - 낚시성·과장 제목, 확인 안 된 숫자 금지. 건강·금융은 단정하는 표현을 피한다.
-- 이 블로그가 다루는 주제와 독자에 맞춘다:
+${category ? `- 카테고리 "${CATEGORY_LABEL[category]}" 에 맞는 글감만 낸다${category === "life" ? "(검색 유입용 생활 정보)" : category === "money" ? "(자산관리·경제)" : "(보험·건강 전문성)"}.\n` : ""}- 이 블로그가 다루는 주제와 독자에 맞춘다:
 ${styleGuide.trim() || "(글투 안내 없음)"}
 `
       : "";
@@ -47,9 +48,10 @@ export async function generateDraft(
   onRetry?: (w: string) => void,
   target: Target = "naver",
   styleGuide = "",
+  category?: Category,
 ) {
   const prompt = `
-너는 네이버 블로그에 글을 쓰는 사람이다. 아래 글감으로 본문을 써라.
+너는 블로그에 글을 쓰는 사람이다. 아래 글감으로 본문을 써라.
 
 키워드: ${keyword}
 글감 제목: ${idea.title}
@@ -61,13 +63,13 @@ ${packSources(sources) || "(자료 없음)"}
 구성:
 - 도입(공감/후킹) → 본문(소제목 2~4구획, 소제목은 heading 으로) → 마무리(요약/행동유도)
 - 사람이 쓴 듯한 구어체. AI 티 나는 표현 금지.
-${platformStyle(target, styleGuide)}
+${platformStyle(target, styleGuide, category)}
 
-${photoHintFor(photoSource)}
+${photoHintFor(photoSource, 0, undefined, target)}
 
 ${SECTION_FORMAT}
 `.trim();
-  return runClaudeJson(prompt, draftSchemaFor(photoSource), { onRetry });
+  return runClaudeJson(prompt, draftSchemaFor(photoSource, 0, target), { onRetry });
 }
 
 /**

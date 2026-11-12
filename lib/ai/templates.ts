@@ -1,4 +1,4 @@
-import type { Mode, PhotoSource, Target } from "../types";
+import { TISTORY_RULES, type Category, type Mode, type PhotoSource, type Target } from "../types";
 
 /** 모든 모드 공통: 마크다운 금지 + 섹션 JSON 형식 설명 */
 export const SECTION_FORMAT = `
@@ -22,7 +22,20 @@ export const SECTION_FORMAT = `
 - 사람이 직접 쓴 듯한 자연스러운 문장. "~에 대해 알아보겠습니다", "결론적으로" 같은 AI 티 나는 표현 금지.
 `.trim();
 
-export function photoHintFor(photoSource: PhotoSource, count = 0, descs?: Array<{ name: string; desc: string }>): string {
+export function photoHintFor(
+  photoSource: PhotoSource,
+  count = 0,
+  descs?: Array<{ name: string; desc: string }>,
+  target: Target = "naver",
+): string {
+  if (target === "tistory" && (photoSource === "ai" || photoSource === "crawl"))
+    return [
+      `사진 규칙: image 섹션을 ${TISTORY_RULES.minImages}~${TISTORY_RULES.maxImages}개만 넣어라(도입 뒤 1장, 본문 중간에 1~3장). 사진이 내용 설명을 돕는 자리에만.`,
+      photoSource === "ai"
+        ? "query 에는 \"어떤 장면을 그려야 하는지\" 한국어로 구체적으로 묘사하라(피사체·구도·분위기). 글자·숫자가 들어간 장면(검사지·표·그래프)은 피하라."
+        : "query 에는 이미지 검색어(2~4단어)를 써라.",
+      "사람 얼굴이 주인공이 아닌 장면(사물·손·뒷모습·풍경)으로. caption 은 사진 아래 짧은 설명(20자 내외).",
+    ].join("\n");
   switch (photoSource) {
     case "none":
       return "사진 규칙: image 섹션을 하나도 만들지 마라.";
@@ -84,8 +97,15 @@ const HEADING_RULE: Record<Target, string> = {
   tistory: "- 소제목은 heading 으로 만든다(검색엔진이 읽는 H2). quote 는 꼭 필요할 때만.",
 };
 
-export function platformStyle(target: Target, styleGuide = ""): string {
-  if (target === "naver") return "";
+/** 카테고리별 글의 목적(사용자 지정) */
+const CATEGORY_RULE: Record<Category, string> = {
+  life: `카테고리: 생활정보 — 목적은 "검색 유입". 검색한 사람이 바로 해결하도록 대상·방법·기간·준비물·주의점을 순서대로 정리한다. 서론은 짧게.`,
+  money: `카테고리: 금융·재테크 — 목적은 "자산관리·경제 이해". 숫자는 계산 과정이 보이게 예시로 설명하고, 제도·금리·세율은 기준 시점을 밝히거나 "최신 기준은 해당 기관에서 확인"이라고 쓴다. 특정 상품 가입·투자를 권유하지 말고, 위험과 장단점을 함께 쓴다.`,
+  health: `카테고리: 보험·건강 — 목적은 "전문성을 쌓고 꾸준히 찾아오는 독자 확보". 근거를 바탕으로 원리를 차근차근 설명하고, 진단·처방·보험 가입을 단정하지 않는다. 수치 기준은 "일반적인 기준"이라고 밝히고, 마지막에 "정확한 판단은 의사(또는 보험 전문가)와 상담"을 넣는다. 다음에 읽을 만한 관련 주제를 한 줄로 이어 준다.`,
+};
+
+export function platformStyle(target: Target, styleGuide = "", category?: Category): string {
+  if (target === "naver") return category ? CATEGORY_RULE[category] : "";
   const own = styleGuide.trim()
     ? `\n\n이 블로그 고유의 글투(사장님 블로그 최근 글에서 배운 것 — 위 규칙과 겹치면 이쪽을 따르되, 문장을 베끼지는 마라):\n${styleGuide.trim()}`
     : "";
@@ -94,8 +114,15 @@ export function platformStyle(target: Target, styleGuide = ""): string {
 - 독자는 구글에서 검색해서 들어온 사람이다. 첫 문단 2~3줄 안에 검색한 질문의 핵심 답을 먼저 준다.
 - 소제목(heading) 3~6개로 구획을 나누고, 소제목에는 사람들이 검색할 만한 말을 자연스럽게 넣는다.
 - 과장·낚시성 표현, 같은 말 반복, 키워드 나열을 하지 마라(애드센스 정책상 "가치가 낮은 글"로 보일 수 있다).
-- 마지막에 heading "자주 묻는 질문" 과, 질문 한 줄 + 답 2~3줄 문단을 2~3쌍 둔다.
+- 마지막에 heading "자주 묻는 질문" 과, 질문 한 줄 + 답 1~2줄 문단을 2쌍 둔다.
 - 확인되지 않은 사실·숫자·가격은 쓰지 마라. 모르면 "직접 확인이 필요하다"고 쓴다.
+
+분량과 문체(사용자 지정 — 반드시 지킬 것):
+- 본문(문단·소제목) 글자 수는 공백 포함 ${TISTORY_RULES.minChars}~${TISTORY_RULES.maxChars}자. 더 길게 쓰지 마라. 소제목은 3~5개.
+- 제목에는 사람들이 실제로 검색할 키워드를 앞쪽에 자연스럽게 넣는다(예: "공복혈당 110 정상인가요?").
+- 정보를 나열하지 말고, 글쓴이가 직접 이해한 것을 옆 사람에게 설명하듯 쓴다: "왜 그런지" 이유를 풀어 주고,
+  어려운 용어는 나오자마자 쉬운 말로 풀이하고, 필요하면 생활 속 비유를 한 번 든다. 교과서·보도자료 같은 문장 금지.
+${category ? "- " + CATEGORY_RULE[category] : ""}
 `.trim() + own;
 }
 
@@ -106,10 +133,11 @@ export function modePrompt(
   photoHint: string,
   target: Target = "naver",
   styleGuide = "",
+  category?: Category,
 ) {
   return [
     (mode === "review" ? REVIEW : BRANDING).replace("{{HEADING_RULE}}", HEADING_RULE[target]),
-    platformStyle(target, styleGuide),
+    platformStyle(target, styleGuide, category),
     "",
     `주제: ${topic}`,
     `사용자가 준 핵심 내용:\n${details || "(없음 — 주제만으로 일반적인 내용으로 쓰되 사실을 지어내지 마라)"}`,

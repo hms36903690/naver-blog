@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { ACTIVE_STATUSES, getDb, transaction } from "@/lib/db";
+import { ACTIVE_STATUSES, countTistoryDraftsThisWeek, getDb, transaction } from "@/lib/db";
 import { createJob, runJob } from "@/lib/pipeline";
 import { JobInput } from "@/lib/types";
 import { hasCloudflare } from "@/config";
@@ -35,6 +35,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "사진 폴더를 골라주세요" }, { status: 400 });
   if (input.target === "tistory" && !getSettings().tistoryBlog)
     return NextResponse.json({ error: "설정에서 티스토리 주소를 먼저 넣어주세요" }, { status: 400 });
+  {
+    const st = getSettings();
+    // 글을 다 쓰고 나서 막히면 AI 사용량만 버린다 → 시작할 때 먼저 막는다(연습 모드는 세지 않음)
+    if (input.target === "tistory" && !st.dryRun && countTistoryDraftsThisWeek() >= st.tistoryWeeklyLimit)
+      return NextResponse.json(
+        { error: `이번 주 티스토리 ${st.tistoryWeeklyLimit}편을 모두 채웠습니다. 다음 주 월요일부터 다시 만들 수 있습니다(연습 모드는 가능).` },
+        { status: 400 },
+      );
+  }
   if (input.photoSource === "ai" && !hasCloudflare())
     return NextResponse.json({ error: "AI 사진을 만들려면 Cloudflare 열쇠가 필요합니다" }, { status: 400 });
 

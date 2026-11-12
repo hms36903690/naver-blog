@@ -18,6 +18,7 @@ export type Settings = {
   claudeConcurrency: number;
   tistoryBlog: string;
   tistoryStyle: string;
+  tistoryWeeklyLimit: number;
 };
 export type Limits = Record<string, { min: number; max: number }>;
 
@@ -220,6 +221,12 @@ export default function SettingsDrawer(props: {
             onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
           />
           {props.tistoryMessage && <p className="hint" style={{ margin: "6px 0 0" }}>{props.tistoryMessage}</p>}
+        </div>
+        <div className="set">
+          <div>
+            일주일 글 수<small>이번 주(월~일) 티스토리에 임시저장할 글 수 — 월·수·금처럼 나눠 발행하세요 ({range("tistoryWeeklyLimit")}편)</small>
+          </div>
+          <Num k="tistoryWeeklyLimit" s={s} limits={limits} save={save} unit="편" />
         </div>
         <div className="set" style={{ display: "block" }}>
           <div style={{ marginBottom: 6 }}>

@@ -20,6 +20,8 @@ export type Settings = {
   tistoryBlog: string;
   /** 사장님 티스토리 최근 글에서 배운 글투 안내(앱이 만들고 사람이 고칠 수 있다). 티스토리 글에만 쓴다. */
   tistoryStyle: string;
+  /** 티스토리 일주일 글 수(사용자 지정: 주 3회). 이번 주(월~일) 임시저장한 글이 이 수에 닿으면 더 만들지 않는다. */
+  tistoryWeeklyLimit: number;
 };
 
 /** 숫자 설정의 범위. API 로 내려보내 UI 가 같은 규칙을 쓴다. */
@@ -31,6 +33,7 @@ export const LIMITS = {
   cfImageSteps: { min: 1, max: 8 },
   claudeTimeoutSec: { min: 30, max: 900 },
   claudeConcurrency: { min: 1, max: 6 },
+  tistoryWeeklyLimit: { min: 1, max: 14 },
 } as const;
 
 const BOOL_KEYS = ["dryRun", "killSwitch", "showBrowser"] as const;

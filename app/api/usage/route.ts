@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCfUsageToday } from "@/lib/ai/cfUsage";
 import { FREE_DAILY_NEURONS, neuronsPerImage } from "@/lib/ai/neurons";
-import { countPublishedToday, lastPublishedAt } from "@/lib/db";
+import { countPublishedToday, countTistoryDraftsThisWeek, lastPublishedAt } from "@/lib/db";
 import { getSettings } from "@/lib/settings";
 
 export const runtime = "nodejs";
@@ -21,5 +21,7 @@ export async function GET() {
     neuronsNote: cf.note ?? null,
     neuronsLimit: FREE_DAILY_NEURONS,
     perImage: neuronsPerImage(s.cfImageSteps),
+    tistoryThisWeek: countTistoryDraftsThisWeek(),
+    tistoryWeeklyLimit: s.tistoryWeeklyLimit,
   });
 }

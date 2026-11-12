@@ -23,6 +23,8 @@ type Usage = {
   neuronsNote: string | null;
   neuronsLimit: number;
   perImage: number;
+  tistoryThisWeek?: number;
+  tistoryWeeklyLimit?: number;
 };
 type JobRow = { id: number; keyword: string; status: string; stage: string | null; mode: string; created_at: string; post_status: string | null };
 type Section =
@@ -142,12 +144,26 @@ export default function Page() {
     if (!keyword.trim()) return;
     setPickedIdea(null);
     setIdeas({ busy: true, list: [], sources: [] });
-    const r = await fetch("/api/ideas", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ keyword, target }) });
+    const r = await fetch("/api/ideas", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ keyword, target, ...(category ? { category } : {}) }) });
     const j = await r.json();
     if (!r.ok) return setIdeas({ busy: false, list: [], sources: [], err: j.error || "추천 실패" });
-    setIdeas({ busy: false, list: j.ideas, sources: j.sources, forKey: `${keyword}|${target}` });
+    setIdeas({ busy: false, list: j.ideas, sources: j.sources, forKey: `${keyword}|${target}|${category}` });
   }
   const [keyword, setKeyword] = useState("");
+  // 카테고리(사용자 지정): 생활정보 / 금융·재테크 / 보험·건강 — 카테고리마다 글의 목적·문체가 다르다
+  type Category = "life" | "money" | "health";
+  const CATS: Array<{ id: Category; name: string; desc: string; kw: string }> = [
+    { id: "life", name: "생활정보", desc: "검색 유입을 위한 정보성 글", kw: "생활정보" },
+    { id: "money", name: "금융·재테크", desc: "자산관리와 경제 관련 글", kw: "재테크" },
+    { id: "health", name: "보험·건강", desc: "전문성을 쌓고 독자를 확보하는 글", kw: "건강" },
+  ];
+  const [category, setCategory] = useState<Category | null>(null);
+  function pickCategory(c: Category) {
+    const next = category === c ? null : c;
+    setCategory(next);
+    // 자동 발굴에서 키워드가 비었거나 다른 카테고리 기본 키워드면 이 카테고리 키워드로
+    if (next && mode === "auto" && (!keyword.trim() || CATS.some((x) => x.kw === keyword))) setKeyword(CATS.find((x) => x.id === next)!.kw);
+  }
   const [details, setDetails] = useState("");
   // 처음 켤 때 기본값은 "AI가 그리기"(저작권 걱정 없음). Cloudflare 열쇠가 없으면 아래에서 "사진 없음"으로 바꾼다.
   const [photoSource, setPhotoSource] = useState<PhotoSource>("ai");
@@ -276,8 +292,9 @@ export default function Page() {
           photoFolder,
           photoPlacement: placement,
           target,
+          ...(category ? { category } : {}),
           // 추천 목록이 있으면 고른 것(안 골랐으면 화면에 보인 1번)을 그대로 쓴다 — 다시 추천받지 않는다
-          ...(mode === "auto" && ideas.list.length && ideas.forKey === `${keyword}|${target}`
+          ...(mode === "auto" && ideas.list.length && ideas.forKey === `${keyword}|${target}|${category}`
             ? { idea: ideas.list[pickedIdea ?? 0], sources: ideas.sources }
             : {}),
         }),
@@ -361,6 +378,7 @@ export default function Page() {
   const naverDot = status ? (naverOk ? "1" : status.naver.state === "none" ? "" : "0") : "";
   const pubRatio = usage ? usage.publishedToday / Math.max(1, usage.dailyLimit) : 0;
   const neuRatio = usage ? usage.neurons / usage.neuronsLimit : 0;
+  const tsRatio = usage?.tistoryWeeklyLimit ? (usage.tistoryThisWeek ?? 0) / usage.tistoryWeeklyLimit : 0;
 
   return (
     <>
@@ -427,6 +445,22 @@ export default function Page() {
 
       <main className="wrap">
         <section className="meters" aria-label="계량기">
+          {isTs ? (
+            <div className="meter" data-level={meterLevel(tsRatio)}>
+              <div className="hint">이번 주 티스토리</div>
+              <div className="big num">
+                {usage?.tistoryThisWeek ?? "–"} / {usage?.tistoryWeeklyLimit ?? "–"}편
+              </div>
+              <div className="bar">
+                <span style={{ width: `${Math.min(100, tsRatio * 100)}%` }} />
+              </div>
+              <div className="sub">
+                {usage && (usage.tistoryThisWeek ?? 0) >= (usage.tistoryWeeklyLimit ?? 3)
+                  ? "이번 주 글을 다 채웠습니다 — 다음 주 월요일부터 다시 만들 수 있습니다"
+                  : "월·수·금처럼 나눠 발행하세요 (하루 1편까지)"}
+              </div>
+            </div>
+          ) : (
           <div className="meter" data-level={meterLevel(pubRatio)}>
             <div className="hint">오늘 발행</div>
             <div className="big num">
@@ -441,6 +475,7 @@ export default function Page() {
                 : `발행 사이 최소 ${usage?.minIntervalMin ?? "–"}분 간격`}
             </div>
           </div>
+          )}
           <div className="meter" data-level={meterLevel(neuRatio)}>
             <div className="hint">이미지 생성량</div>
             <div className="big num">
@@ -501,6 +536,24 @@ export default function Page() {
                 </p>
               )}
             </div>
+            <div>
+              <div className="hint" style={{ marginBottom: 6 }}>카테고리</div>
+              <div className="cards">
+                {CATS.map((c) => (
+                  <button key={c.id} type="button" className="card" aria-pressed={category === c.id} onClick={() => pickCategory(c.id)}>
+                    <b>{c.name}</b>
+                    <span>{c.desc}</span>
+                  </button>
+                ))}
+              </div>
+              {isTs && (
+                <p className="hint">
+                  티스토리 글은 본문 1,500~2,000자, 사진 2~4장, 제목에 검색 키워드를 넣고, 직접 이해한 것을 설명하듯 씁니다.
+                  {category && " 발행할 때 티스토리 카테고리도 같은 이름으로 골라 주세요."}
+                </p>
+              )}
+            </div>
+            <div className="hint" style={{ marginBottom: -6 }}>글 유형</div>
             <div className="cards">
               {MODES.map((m) => (
                 <button
@@ -526,17 +579,12 @@ export default function Page() {
             {mode === "auto" && (
               <div className="stack">
                 <div className="seg">
-                  {["건강", "금융", "재테크", "생활경제"].map((k) => (
-                    <button key={k} type="button" aria-pressed={keyword === k} onClick={() => setKeyword(k)}>
-                      {k}
-                    </button>
-                  ))}
                   <button type="button" className="btn" disabled={!keyword.trim() || ideas.busy} onClick={suggest} style={{ marginLeft: "auto" }}>
                     {ideas.busy ? "제목 찾는 중… (1~2분)" : "제목 추천 받기"}
                   </button>
                 </div>
                 {ideas.err && <p className="err">{ideas.err}</p>}
-                {ideas.list.length > 0 && ideas.forKey === `${keyword}|${target}` && (
+                {ideas.list.length > 0 && ideas.forKey === `${keyword}|${target}|${category}` && (
                   <div>
                     <div className="hint" style={{ marginBottom: 6 }}>
                       쓰고 싶은 제목을 하나 고르세요. 고르지 않으면 1번으로 씁니다.

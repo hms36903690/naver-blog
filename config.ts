@@ -35,6 +35,7 @@ export const config = {
     claudeConcurrency: num("CLAUDE_CONCURRENCY", 2),
     tistoryBlog: env("TISTORY_BLOG") || "",
     tistoryStyle: "",
+    tistoryWeeklyLimit: num("TISTORY_WEEKLY_LIMIT", 3),
   },
 };
 
