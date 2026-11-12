@@ -394,6 +394,16 @@ export default function Page() {
             <i /> 이미지 생성
           </span>
         </div>
+        {s?.tistoryBlog && (
+          <span className="row" style={{ gap: 6 }}>
+            <a className="btn" href={`https://${s.tistoryBlog}.tistory.com/`} target="_blank" rel="noreferrer" title="내 티스토리 블로그를 새 탭으로 엽니다">
+              내 티스토리 ↗
+            </a>
+            <a className="btn" href={`https://${s.tistoryBlog}.tistory.com/manage/newpost/`} target="_blank" rel="noreferrer" title="티스토리 글쓰기 화면 — 아래쪽 '임시저장' 옆 숫자를 누르면 저장된 글 목록이 열립니다">
+              티스토리 글쓰기 ↗
+            </a>
+          </span>
+        )}
         {isTs ? (
           <button className="btn" onClick={tistoryLogin} disabled={tsLoggingIn || !s?.tistoryBlog} title={!s?.tistoryBlog ? "설정에서 티스토리 주소를 먼저 넣어주세요" : ""}>
             {tsLoggingIn ? "로그인 창 열림…" : tsOk ? "티스토리 다시 로그인" : "티스토리 로그인"}
@@ -632,6 +642,14 @@ export default function Page() {
                   <div>
                     <b>{POST_LABEL[detail.post.status] ?? detail.post.status}</b> — {detail.post.note}
                   </div>
+                  {(detail.post.status === "draft_saved" || detail.post.status === "draft_unverified") && s?.tistoryBlog && (
+                    <div className="hint">
+                      <a href={`https://${s.tistoryBlog}.tistory.com/manage/newpost/`} target="_blank" rel="noreferrer">
+                        티스토리 글쓰기 화면 열기 ↗
+                      </a>{" "}
+                      — 아래쪽 <b>임시저장</b> 옆 숫자를 누르면 이 글을 불러올 수 있습니다.
+                    </div>
+                  )}
                   {detail.images.some((i) => i.verdict_ok) && (
                     <div>
                       <button className="btn" onClick={() => openPhotoFolder(detail.job.id)}>
