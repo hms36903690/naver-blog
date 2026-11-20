@@ -9,6 +9,7 @@ import { countTistoryDraftsThisWeek, getDb, setJobStage } from "./db";
 import { describePhotos, listLocalPhotos, placePhotos, type LocalPhoto, type PhotoDesc } from "./localPhotos";
 import { jobLog } from "./log";
 import { checkPublishGuard, publishDraft, type PublishResult } from "./naver/publish";
+import { appendNaverCta } from "./cta";
 import { verifySession } from "./naver/session";
 import { saveTistoryDraft } from "./tistory/draft";
 import { verifyTistory } from "./tistory/session";
@@ -273,6 +274,13 @@ export async function runJob(jobId: number): Promise<void> {
       });
       const slots = draft.sections.filter((s) => s.type === "image").length;
       log(`사진 ${images.size}/${slots}자리 채움${images.size < slots ? ` — 빈 ${slots - images.size}자리는 사진 없이 올라갑니다` : ""}`);
+    }
+
+    // 네이버 인바운드: 글 끝에 상담 신청 안내(설정에 신청서 주소가 있을 때만)
+    if (target === "naver" && settings.naverCtaUrl) {
+      draft = appendNaverCta(draft, settings.naverCtaText, settings.naverCtaUrl);
+      db.prepare("UPDATE drafts SET body_json=? WHERE id=?").run(JSON.stringify(draft.sections), draftId);
+      log("글 끝에 상담 신청 안내를 붙였습니다");
     }
 
     // 티스토리: 반자동 — 임시저장까지만(발행은 사람이)

@@ -151,6 +151,22 @@ async function main() {
   ok("네이버는 기존대로(6장 이상, 분량 제한 없음)", draftSchemaFor("ai").safeParse(mkT(3000, 6)).success);
   ok("본문 글자 수 계산", bodyChars(mkT(1700, 3) as never) === 1700);
 
+  // ── 네이버 인바운드: 글 끝 상담 신청 안내 ──
+  const { appendNaverCta } = await import("@/lib/cta");
+  const base3 = { title: "t", sections: [{ type: "paragraph" as const, text: "본문" }, { type: "paragraph" as const, text: "둘" }, { type: "paragraph" as const, text: "셋" }] };
+  const withCta = appendNaverCta(base3, "안내 문구", "https://form.naver.com/response/abc");
+  ok("신청서 주소가 있으면 끝에 [구분선·안내·주소] 3블록", withCta.sections.length === 6 && withCta.sections[3].type === "divider" && (withCta.sections[5] as { text: string }).text.includes("https://form.naver.com/response/abc"));
+  ok("주소가 없으면 아무것도 안 붙임", appendNaverCta(base3, "안내", "").sections.length === 3);
+  let badUrl = false;
+  try {
+    updateSettings({ naverCtaUrl: "form.naver.com/abc" });
+  } catch (e) {
+    badUrl = e instanceof UnknownSettingError;
+  }
+  ok("신청서 주소는 https:// 만 허용", badUrl && updateSettings({ naverCtaUrl: "https://form.naver.com/response/x" }).naverCtaUrl === "https://form.naver.com/response/x");
+  ok("기본 안내 문구는 '전문가 연결' 형태(세무사법)", /세무사·노무사와 연결/.test(getSettings().naverCtaText));
+  resetSettings();
+
   // ── 7-8 마크다운 무력화 ──
   const md = "정말 좋았어요~~ **진짜** `코드`\n# 제목\n> 인용\n- 목록\n물결~ 하나";
   const neu = neutralizeMarkdown(md);

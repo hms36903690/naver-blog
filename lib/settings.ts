@@ -22,6 +22,13 @@ export type Settings = {
   tistoryStyle: string;
   /** 티스토리 일주일 글 수(사용자 지정: 주 3회). 이번 주(월~일) 임시저장한 글이 이 수에 닿으면 더 만들지 않는다. */
   tistoryWeeklyLimit: number;
+  /**
+   * 네이버 인바운드(상담 신청) — 네이버 글 끝에 자동으로 붙는 안내 문구와 신청서(네이버 폼) 주소.
+   * 주소가 비어 있으면 아무것도 붙이지 않는다.
+   * ⚠️ 세무 대리·세무 상담료는 세무사만 할 수 있다(세무사법) → 기본 문구는 "정보 정리 + 전문가 연결" 형태.
+   */
+  naverCtaText: string;
+  naverCtaUrl: string;
 };
 
 /** 숫자 설정의 범위. API 로 내려보내 UI 가 같은 규칙을 쓴다. */
@@ -73,6 +80,8 @@ export function getSettings(): Settings {
     } else if (key === "visibility" && (VISIBILITIES as string[]).includes(value)) s.visibility = value as Visibility;
     else if (key === "tistoryBlog") s.tistoryBlog = value;
     else if (key === "tistoryStyle") s.tistoryStyle = value;
+    else if (key === "naverCtaText") s.naverCtaText = value;
+    else if (key === "naverCtaUrl") s.naverCtaUrl = value;
   }
   return s;
 }
@@ -90,6 +99,12 @@ export function updateSettings(patch: Record<string, unknown>): Settings {
         const n = Number(v);
         if (!Number.isFinite(n)) throw new UnknownSettingError(`숫자가 아닙니다: ${k}`);
         up.run(k, String(clamp(k as NumKey, n)));
+      } else if (k === "naverCtaText") {
+        up.run(k, String(v ?? "").trim().slice(0, 300));
+      } else if (k === "naverCtaUrl") {
+        const u = String(v ?? "").trim();
+        if (u && !/^https:\/\/[^\s]+$/.test(u)) throw new UnknownSettingError("신청서 주소는 https:// 로 시작해야 합니다 (네이버 폼 주소를 그대로 붙여넣으세요)");
+        up.run(k, u);
       } else if (k === "tistoryStyle") {
         up.run(k, String(v ?? "").slice(0, 4000));
       } else if (k === "tistoryBlog") {

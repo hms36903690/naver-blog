@@ -19,6 +19,8 @@ export type Settings = {
   tistoryBlog: string;
   tistoryStyle: string;
   tistoryWeeklyLimit: number;
+  naverCtaText: string;
+  naverCtaUrl: string;
 };
 export type Limits = Record<string, { min: number; max: number }>;
 
@@ -71,6 +73,12 @@ export default function SettingsDrawer(props: {
   const [err, setErr] = useState("");
   const [blog, setBlog] = useState(s.tistoryBlog);
   useEffect(() => setBlog(s.tistoryBlog), [s.tistoryBlog]);
+  const [ctaText, setCtaText] = useState(s.naverCtaText);
+  const [ctaUrl, setCtaUrl] = useState(s.naverCtaUrl);
+  useEffect(() => {
+    setCtaText(s.naverCtaText);
+    setCtaUrl(s.naverCtaUrl);
+  }, [s.naverCtaText, s.naverCtaUrl]);
   const [style, setStyle] = useState(s.tistoryStyle);
   useEffect(() => setStyle(s.tistoryStyle), [s.tistoryStyle]);
   const [learning, setLearning] = useState<{ busy: boolean; msg?: string; err?: string }>({ busy: false });
@@ -204,6 +212,35 @@ export default function SettingsDrawer(props: {
             AI 응답 대기<small>{range("claudeTimeoutSec")}초</small>
           </div>
           <Num k="claudeTimeoutSec" s={s} limits={limits} save={save} unit="초" />
+        </div>
+
+        <h3>네이버 상담 신청 (인바운드)</h3>
+        <div className="set" style={{ display: "block" }}>
+          <div style={{ marginBottom: 6 }}>
+            신청서 주소 (네이버 폼)
+            <small>넣으면 모든 네이버 글 끝에 아래 안내와 신청서 주소가 붙습니다. 비우면 붙이지 않습니다.</small>
+          </div>
+          <input
+            type="text"
+            value={ctaUrl}
+            placeholder="https://form.naver.com/response/..."
+            onChange={(e) => setCtaUrl(e.target.value)}
+            onBlur={() => ctaUrl !== s.naverCtaUrl && save({ naverCtaUrl: ctaUrl })}
+            onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+          />
+        </div>
+        <div className="set" style={{ display: "block" }}>
+          <div style={{ marginBottom: 6 }}>
+            안내 문구
+            <small>짧고 담백하게(글당 1개). 세무 대리·상담료는 세무사만 할 수 있어 "정보 정리 + 전문가 연결"로 적어 두었습니다.</small>
+          </div>
+          <textarea
+            style={{ minHeight: 90 }}
+            value={ctaText}
+            maxLength={300}
+            onChange={(e) => setCtaText(e.target.value)}
+            onBlur={() => ctaText !== s.naverCtaText && save({ naverCtaText: ctaText })}
+          />
         </div>
 
         <h3>티스토리 (임시저장까지만)</h3>
