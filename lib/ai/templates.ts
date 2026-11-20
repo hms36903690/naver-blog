@@ -1,4 +1,4 @@
-import { TISTORY_RULES, type Category, type Mode, type PhotoSource, type Target } from "../types";
+import { CATEGORY_LABEL, categoriesFor, TISTORY_RULES, type Category, type Mode, type PhotoSource, type Target } from "../types";
 
 /** 모든 모드 공통: 마크다운 금지 + 섹션 JSON 형식 설명 */
 export const SECTION_FORMAT = `
@@ -147,6 +147,13 @@ ${category ? "- " + CATEGORY_RULE[category] : ""}
 `.trim() + own;
 }
 
+/** 글과 함께 블로그 카테고리도 정하게 한다(사용자가 골랐으면 그대로). */
+export function categoryInstruction(target: Target, chosen?: Category): string {
+  if (chosen) return `카테고리: 출력 JSON 에 "category": "${CATEGORY_LABEL[chosen]}" 를 넣어라.`;
+  const names = categoriesFor(target).map((c) => CATEGORY_LABEL[c]);
+  return `카테고리: 이 글 내용에 가장 알맞은 블로그 카테고리를 아래 중 하나만 골라 출력 JSON 의 "category" 에 그대로 써라: ${names.join(", ")}`;
+}
+
 export function modePrompt(
   mode: Exclude<Mode, "auto">,
   topic: string,
@@ -166,5 +173,6 @@ export function modePrompt(
     photoHint,
     "",
     SECTION_FORMAT,
+    categoryInstruction(target, category),
   ].join("\n");
 }

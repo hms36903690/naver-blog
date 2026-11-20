@@ -38,7 +38,7 @@ type JobDetail = {
   job: { id: number; keyword: string; status: string; stage: string | null; error: string | null; mode: string; inputs?: string };
   ideas: Array<{ id: number; title: string; angle: string; chosen: number }>;
   sources: Array<{ id: number; type: string; title: string; url: string }>;
-  draft: { title: string; sections: Section[] } | null;
+  draft: { title: string; sections: Section[]; category?: string | null } | null;
   images: ImageRow[];
   post: { status: string; blog_url: string | null; screenshot: string | null; note: string | null } | null;
   logs: Array<{ id: number; level: string; message: string }>;
@@ -726,7 +726,7 @@ export default function Page() {
 
               {detail.draft && (
                 <details open>
-                  <summary>글 미리보기</summary>
+                  <summary>글 미리보기{detail.draft.category ? ` — 카테고리: ${detail.draft.category}` : ""}</summary>
                   <Preview
                     d={detail.draft}
                     images={detail.images}

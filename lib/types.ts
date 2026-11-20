@@ -15,7 +15,12 @@ export const ImageSec = z.object({ type: z.literal("image"), query: z.string().m
 export const Section = z.discriminatedUnion("type", [HeadingSec, ParagraphSec, QuoteSec, DividerSec, ImageSec]);
 export type Section = z.infer<typeof Section>;
 
-export const DraftBase = z.object({ title: z.string().min(2), sections: z.array(Section).min(3) });
+export const DraftBase = z.object({
+  title: z.string().min(2),
+  sections: z.array(Section).min(3),
+  /** AI 가 고른(또는 사용자가 정한) 블로그 카테고리 이름 */
+  category: z.string().nullish(),
+});
 export type Draft = z.infer<typeof DraftBase>;
 
 export type PhotoSource = "local" | "crawl" | "ai" | "none";
@@ -40,6 +45,18 @@ export const CATEGORY_LABEL: Record<Category, string> = {
 export const TISTORY_CATEGORIES: Category[] = ["life", "money", "health"];
 export const NAVER_CATEGORIES: Category[] = ["tax", "fund", "wage", "rent", "inherit", "finance"];
 export const CATEGORY_IDS = [...TISTORY_CATEGORIES, ...NAVER_CATEGORIES] as [Category, ...Category[]];
+export const categoriesFor = (target: Target) => (target === "tistory" ? TISTORY_CATEGORIES : NAVER_CATEGORIES);
+
+/** AI 가 쓴 카테고리 이름("임금 노무", "증여/상속" 등)을 그 블로그의 카테고리로 맞춘다. 못 맞추면 undefined. */
+export function categoryFromLabel(label: string | null | undefined, target: Target): Category | undefined {
+  if (!label) return undefined;
+  const norm = (x: string) => x.replace(/[\s·.,/\-_()]+/g, "");
+  const l = norm(label);
+  return categoriesFor(target).find((c) => {
+    const n = norm(CATEGORY_LABEL[c]);
+    return n === l || l.includes(n) || n.includes(l);
+  });
+}
 
 const countImages = (d: Draft) => d.sections.filter((s) => s.type === "image").length;
 

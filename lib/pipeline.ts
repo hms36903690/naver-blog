@@ -18,7 +18,7 @@ import { newContext } from "./playwright";
 import { findImageForSlot, type SeenImages } from "./scrape/images";
 import { scrapeTrends } from "./scrape/trends";
 import { getSettings } from "./settings";
-import { bodyChars, CATEGORY_LABEL, draftSchemaFor, type Draft, type ImageStyle, type JobInput, type PhotoSource, type Source } from "./types";
+import { bodyChars, CATEGORY_LABEL, categoryFromLabel, draftSchemaFor, type Draft, type ImageStyle, type JobInput, type PhotoSource, type Source } from "./types";
 
 const PUBLISH_CAP_MS = 15 * 60 * 1000;
 
@@ -255,9 +255,13 @@ export async function runJob(jobId: number): Promise<void> {
     const san = sanitizeDraft(draft);
     draft = san.draft;
     if (san.droppedHighlights) log(`본문에 없는 강조 구절 ${san.droppedHighlights}개를 뺐습니다`, "warn");
+    // 카테고리: 사용자가 골랐으면 그것, 아니면 AI 가 글에 맞게 고른 것(블로그 카테고리 목록에 맞춰 정리)
+    const decidedCat = input.category ?? categoryFromLabel(draft.category, target);
+    const catLabel = decidedCat ? CATEGORY_LABEL[decidedCat] : null;
+    if (catLabel) log(`카테고리: ${catLabel}${input.category ? "" : " (글 내용에 맞게 AI가 골랐습니다)"}`);
     const dr = db
-      .prepare("INSERT INTO drafts (job_id, idea_id, title, body_json) VALUES (?,?,?,?)")
-      .run(jobId, ideaId, draft.title, JSON.stringify(draft.sections));
+      .prepare("INSERT INTO drafts (job_id, idea_id, title, body_json, category) VALUES (?,?,?,?,?)")
+      .run(jobId, ideaId, draft.title, JSON.stringify(draft.sections), catLabel);
     const draftId = Number(dr.lastInsertRowid);
     log(`초안 완성: "${draft.title}" (본문 ${bodyChars(draft).toLocaleString()}자, ${draft.sections.length}개 블록)`, "ok");
 
@@ -315,7 +319,7 @@ export async function runJob(jobId: number): Promise<void> {
       if (tr.status === "draft_saved" || tr.status === "draft_unverified") {
         const bc = bodyChars(draft);
         const imgs = draft.sections.filter((x) => x.type === "image").length;
-        tr.note += ` (본문 ${bc.toLocaleString()}자, 사진 자리 ${imgs}곳${input.category ? `, 카테고리: ${CATEGORY_LABEL[input.category]} — 발행할 때 티스토리 카테고리도 골라 주세요` : ""})`;
+        tr.note += ` (본문 ${bc.toLocaleString()}자, 사진 자리 ${imgs}곳${catLabel ? `, 카테고리: ${catLabel} — 발행할 때 티스토리 카테고리를 '${catLabel}'로 골라 주세요` : ""})`;
       }
       recordPost(jobId, draftId, tr);
       if (tr.status === "failed") {
@@ -370,6 +374,7 @@ export async function runJob(jobId: number): Promise<void> {
         setTimeout(() => res({ status: "failed", note: "글쓰기가 15분 안에 끝나지 않아 중단했습니다. 글은 임시저장 상태로 남아 있을 수 있습니다." }), PUBLISH_CAP_MS),
       ),
     ]);
+    if (catLabel && result.status !== "blocked") result.note += ` (카테고리: ${catLabel} — 네이버 블로그에서 이 카테고리로 옮겨 주세요)`;
     recordPost(jobId, draftId, result);
     if (result.status === "published") {
       log(`발행 완료: ${result.url}`, "ok");

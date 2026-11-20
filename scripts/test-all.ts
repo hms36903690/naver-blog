@@ -167,6 +167,12 @@ async function main() {
   ok("기본 안내 문구는 '전문가 연결' 형태(세무사법)", /세무사·노무사와 연결/.test(getSettings().naverCtaText));
   resetSettings();
 
+  // ── AI 가 쓴 카테고리 이름을 블로그 카테고리로 맞추기 ──
+  const { categoryFromLabel } = await import("@/lib/types");
+  ok("카테고리 이름 맞추기(네이버)", categoryFromLabel("임금 노무", "naver") === "wage" && categoryFromLabel("증여/상속", "naver") === "inherit" && categoryFromLabel("세금", "naver") === "tax");
+  ok("카테고리 이름 맞추기(티스토리)", categoryFromLabel("금융 재테크", "tistory") === "money" && categoryFromLabel("보험·건강", "tistory") === "health");
+  ok("다른 블로그 카테고리·엉뚱한 이름은 무시", categoryFromLabel("세금", "tistory") === undefined && categoryFromLabel("여행", "naver") === undefined);
+
   // ── 7-8 마크다운 무력화 ──
   const md = "정말 좋았어요~~ **진짜** `코드`\n# 제목\n> 인용\n- 목록\n물결~ 하나";
   const neu = neutralizeMarkdown(md);
