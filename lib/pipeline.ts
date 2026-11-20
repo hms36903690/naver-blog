@@ -12,6 +12,7 @@ import { checkPublishGuard, publishDraft, type PublishResult } from "./naver/pub
 import { appendNaverCta } from "./cta";
 import { verifySession } from "./naver/session";
 import { saveTistoryDraft } from "./tistory/draft";
+import { exportPhotosForUpload } from "./tistory/html";
 import { verifyTistory } from "./tistory/session";
 import { paths } from "./paths";
 import { newContext } from "./playwright";
@@ -310,6 +311,9 @@ export async function runJob(jobId: number): Promise<void> {
         setJobStage(jobId, "failed", "티스토리 로그인 필요", ts.message);
         return;
       }
+      const upDir = path.join(paths.images, `job${jobId}`, "올릴사진");
+      const exported = exportPhotosForUpload(draft, images, upDir);
+      if (exported.length) log(`올릴 사진 ${exported.length}장을 '올릴사진' 폴더에 사진 1~${exported.length} 이름으로 정리했습니다`);
       const tr = await Promise.race([
         saveTistoryDraft({ jobId, blog: ts.blog, draft, images, dryRun: nowT.dryRun, headless: !nowT.showBrowser, log }),
         new Promise<{ status: "failed"; note: string }>((res) =>

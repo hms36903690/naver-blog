@@ -76,6 +76,24 @@ const setup = async (ctx: BrowserContext) => {
   ok("마크다운 무력화", !/\*\*|~~/.test(html) && html.includes("물결～"));
   ok("사진 자리: 구한 사진만 안내문 1개", photoSlots === 1 && html.includes("사진 1 — 제가 쓰는 그라인더") && !html.includes("못 구한 사진"));
 
+  // ── 올릴 사진을 안내문 번호(사진 1, 2…)와 같은 이름으로 정리 ──
+  const { exportPhotosForUpload } = await import("@/lib/tistory/html");
+  const pdir = path.join(tmp, "imgsrc");
+  fs.mkdirSync(pdir, { recursive: true });
+  const pa = path.join(pdir, "ai-0-1.png");
+  const pb = path.join(pdir, "ai-3-0.png");
+  fs.writeFileSync(pa, "A");
+  fs.writeFileSync(pb, "B");
+  const d2 = { title: "t", sections: [
+    { type: "image" as const, query: "첫" }, { type: "paragraph" as const, text: "가" },
+    { type: "image" as const, query: "못 구함" }, { type: "image" as const, query: "셋째" }, { type: "paragraph" as const, text: "나" },
+  ] };
+  const up = path.join(tmp, "올릴사진");
+  const exp = exportPhotosForUpload(d2, new Map([[0, pa], [3, pb]]), up);
+  const html2 = draftToTistoryHtml(d2, new Map([[0, pa], [3, pb]])).html;
+  ok("올릴사진: 사진 1·사진 2 로 정리(빈 자리 건너뜀)", exp.map((f) => path.basename(f)).join(",") === "사진 1.png,사진 2.png" && fs.readFileSync(exp[1], "utf8") === "B");
+  ok("안내문 번호와 파일 이름이 일치", html2.includes("「사진 1」") && html2.includes("「사진 2」") && !html2.includes("「사진 3」"));
+
   // ── 하네스: 연습 모드(저장 안 함) ──
   const logs: string[] = [];
   const base = { jobId: 1, blog: "harnessblog", draft, images: imgs, headless: true, log: (m: string) => logs.push(m) };
