@@ -131,6 +131,7 @@ export default function Page() {
   }, []);
   const setTarget = (t: Target) => {
     setTargetState(t);
+    setCategory(null);
     try {
       localStorage.setItem("target", t);
     } catch {}
@@ -150,13 +151,24 @@ export default function Page() {
     setIdeas({ busy: false, list: j.ideas, sources: j.sources, forKey: `${keyword}|${target}|${category}` });
   }
   const [keyword, setKeyword] = useState("");
-  // 카테고리(사용자 지정): 생활정보 / 금융·재테크 / 보험·건강 — 카테고리마다 글의 목적·문체가 다르다
-  type Category = "life" | "money" | "health";
-  const CATS: Array<{ id: Category; name: string; desc: string; kw: string }> = [
+  // 카테고리(사용자 지정) — 올릴 곳마다 다르다
+  //   티스토리: 생활정보 / 금융·재테크 / 보험·건강
+  //   네이버: 사업자 정보(세금·자금·임금·임대료·증여·상속·재무)
+  type Category = "life" | "money" | "health" | "tax" | "fund" | "wage" | "rent" | "inherit" | "finance";
+  const TS_CATS: Array<{ id: Category; name: string; desc: string; kw: string }> = [
     { id: "life", name: "생활정보", desc: "검색 유입을 위한 정보성 글", kw: "생활정보" },
     { id: "money", name: "금융·재테크", desc: "자산관리와 경제 관련 글", kw: "재테크" },
     { id: "health", name: "보험·건강", desc: "전문성을 쌓고 독자를 확보하는 글", kw: "건강" },
   ];
+  const NV_CATS: Array<{ id: Category; name: string; desc: string; kw: string }> = [
+    { id: "tax", name: "세금", desc: "부가세·종소세·법인세 신고와 절세", kw: "사업자 세금" },
+    { id: "fund", name: "자금", desc: "정책자금·대출·지원금", kw: "소상공인 정책자금" },
+    { id: "wage", name: "임금·노무", desc: "최저임금·주휴수당·4대보험·퇴직금", kw: "사업주 인건비" },
+    { id: "rent", name: "임대료", desc: "상가 임대차·임대료·권리금", kw: "상가 임대료" },
+    { id: "inherit", name: "증여·상속", desc: "가업승계·증여세·상속세", kw: "사업자 증여 상속" },
+    { id: "finance", name: "재무", desc: "장부·경비·현금흐름·재무제표", kw: "사업자 재무관리" },
+  ];
+  const CATS = target === "tistory" ? TS_CATS : NV_CATS;
   const [category, setCategory] = useState<Category | null>(null);
   function pickCategory(c: Category) {
     const next = category === c ? null : c;

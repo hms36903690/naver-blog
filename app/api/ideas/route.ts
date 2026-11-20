@@ -11,7 +11,7 @@ export const maxDuration = 300;
 const Body = z.object({
   keyword: z.string().trim().min(1).max(100),
   target: z.enum(["naver", "tistory"]).default("naver"),
-  category: z.enum(["life", "money", "health"]).optional(),
+  category: z.enum(["life", "money", "health", "tax", "fund", "wage", "rent", "inherit", "finance"]).optional(),
 });
 
 /** [제목 추천] — 요즘 뉴스·블로그를 모아 제목 후보 8개를 돌려준다. 아무것도 저장·발행하지 않는다. */

@@ -24,8 +24,22 @@ export type Mode = "auto" | "review" | "branding";
 /** 올릴 곳. 티스토리는 "임시저장까지만"(반자동) — 발행은 사람이 직접 한다. */
 export type Target = "naver" | "tistory";
 /** 블로그 카테고리(사용자 지정) — 카테고리마다 글의 목적이 다르다 */
-export type Category = "life" | "money" | "health";
-export const CATEGORY_LABEL: Record<Category, string> = { life: "생활정보", money: "금융·재테크", health: "보험·건강" };
+export type Category = "life" | "money" | "health" | "tax" | "fund" | "wage" | "rent" | "inherit" | "finance";
+export const CATEGORY_LABEL: Record<Category, string> = {
+  life: "생활정보",
+  money: "금융·재테크",
+  health: "보험·건강",
+  tax: "세금",
+  fund: "자금",
+  wage: "임금·노무",
+  rent: "임대료",
+  inherit: "증여·상속",
+  finance: "재무",
+};
+/** 티스토리 = 생활·금융·건강 블로그 / 네이버 = 사업자 정보 블로그(사용자 지정) */
+export const TISTORY_CATEGORIES: Category[] = ["life", "money", "health"];
+export const NAVER_CATEGORIES: Category[] = ["tax", "fund", "wage", "rent", "inherit", "finance"];
+export const CATEGORY_IDS = [...TISTORY_CATEGORIES, ...NAVER_CATEGORIES] as [Category, ...Category[]];
 
 const countImages = (d: Draft) => d.sections.filter((s) => s.type === "image").length;
 
@@ -99,7 +113,7 @@ export const JobInput = z.object({
   photoFolder: z.string().optional().default(""),
   photoPlacement: z.enum(["order", "ai"]).optional().default("ai"),
   target: z.enum(["naver", "tistory"]).optional().default("naver"),
-  category: z.enum(["life", "money", "health"]).optional(),
+  category: z.enum(["life", "money", "health", "tax", "fund", "wage", "rent", "inherit", "finance"]).optional(),
   /** [제목 추천]에서 사람이 고른 글감. 있으면 자동 발굴의 "1등 자동 선택"을 건너뛴다. */
   idea: z.object({ title: z.string().min(2).max(200), angle: z.string().max(500), rationale: z.string().max(800) }).optional(),
   /** 제목 추천 때 모은 자료(다시 긁지 않도록 그대로 넘긴다) */
