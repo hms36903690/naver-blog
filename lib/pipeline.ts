@@ -224,7 +224,7 @@ export async function runJob(jobId: number): Promise<void> {
       }
 
       setJobStage(jobId, "writing", "본문 쓰는 중");
-      const d = await generateDraft(input.keyword, chosen, sources, input.photoSource, onRetry, target, settings.tistoryStyle, input.category);
+      const d = await generateDraft(input.keyword, chosen, sources, input.photoSource, onRetry, target, settings.tistoryStyle, input.category, settings.naverAuthorBio);
       if (!d.ok) throw new Error(`본문 쓰기 실패: ${d.error}`);
       draft = d.data;
     } else {
@@ -246,6 +246,7 @@ export async function runJob(jobId: number): Promise<void> {
         target,
         settings.tistoryStyle,
         input.category,
+        settings.naverAuthorBio,
       );
       const d = await runClaudeJson(prompt, draftSchemaFor(input.photoSource, photos.length, target), { onRetry });
       if (!d.ok) throw new Error(`본문 쓰기 실패: ${d.error}`);

@@ -21,6 +21,7 @@ export type Settings = {
   tistoryWeeklyLimit: number;
   naverCtaText: string;
   naverCtaUrl: string;
+  naverAuthorBio: string;
 };
 export type Limits = Record<string, { min: number; max: number }>;
 
@@ -79,6 +80,8 @@ export default function SettingsDrawer(props: {
     setCtaText(s.naverCtaText);
     setCtaUrl(s.naverCtaUrl);
   }, [s.naverCtaText, s.naverCtaUrl]);
+  const [bio, setBio] = useState(s.naverAuthorBio);
+  useEffect(() => setBio(s.naverAuthorBio), [s.naverAuthorBio]);
   const [style, setStyle] = useState(s.tistoryStyle);
   useEffect(() => setStyle(s.tistoryStyle), [s.tistoryStyle]);
   const [learning, setLearning] = useState<{ busy: boolean; msg?: string; err?: string }>({ busy: false });
@@ -212,6 +215,15 @@ export default function SettingsDrawer(props: {
             AI 응답 대기<small>{range("claudeTimeoutSec")}초</small>
           </div>
           <Num k="claudeTimeoutSec" s={s} limits={limits} save={save} unit="초" />
+        </div>
+
+        <h3>네이버 글쓴이</h3>
+        <div className="set" style={{ display: "block" }}>
+          <div style={{ marginBottom: 6 }}>
+            내 소개 (실제 경력·자격만)
+            <small>예: "개인사업자 세무·노무 상담 10년, ○○ 자격". 네이버 글에 한 번 자연스럽게 들어갑니다. 비워 두면 경력 언급 없이 전문가 관점으로만 씁니다. AI는 여기 적힌 것 외의 경력을 지어내지 않습니다.</small>
+          </div>
+          <textarea style={{ minHeight: 70 }} value={bio} maxLength={300} onChange={(e) => setBio(e.target.value)} onBlur={() => bio !== s.naverAuthorBio && save({ naverAuthorBio: bio })} />
         </div>
 
         <h3>네이버 상담 신청 (인바운드)</h3>

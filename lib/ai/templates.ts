@@ -115,18 +115,30 @@ const CATEGORY_RULE: Record<Category, string> = {
  * 네이버 블로그 = 사업자에게 필요한 정보 블로그(사용자 지정, 애드포스트 수익화 목표).
  * 세법·노동법은 해마다 바뀌고 틀리면 독자가 실제 손해를 본다 → 기준 연도·출처 확인·전문가 상담을 반드시.
  */
-const NAVER_BIZ = `
-네이버 블로그 방향(사업자 정보 블로그 — 반드시 지킬 것):
-- 독자는 소상공인·개인사업자·법인 대표다. 실무에 바로 쓰도록: 누가 해당되는지, 언제까지(신고·납부 기한), 얼마(계산 예시), 어떻게(절차·서류), 놓치면 어떤 불이익(가산세·과태료 등)이 있는지.
-- 세율·금액·기한·지원 조건은 해마다 바뀐다. 기준 연도를 밝히고 "최신 기준은 국세청 홈택스·고용노동부 등 해당 기관에서 확인"이라고 맺는다. 확인되지 않은 숫자·법 조항은 지어내지 마라.
-- 개별 사례를 단정하지 말고, 마지막에 "개별 상황은 세무사·노무사 등 전문가와 상담"을 넣는다.
-- 어려운 용어(과세표준·필요경비·주휴수당 등)는 나오자마자 쉬운 말로 풀고, 사장님 옆에서 설명하듯 친근하지만 정확하게 쓴다.
+/**
+ * 네이버 = 사업자 대상 "전문성" 글쓰기(사용자 지정). 목적: "이 사람한테 물어보면 되겠다"는 신뢰 → 상담 신청(인바운드).
+ * ⚠️ 전문성을 보이려고 경력·상담 건수·고객 사례를 지어내면 독자를 속이는 것이다 → 사람이 적은 "내 소개"만 쓴다.
+ */
+function naverExpertStyle(authorBio: string): string {
+  const bio = authorBio.trim();
+  return `
+네이버 블로그 방향(사업자 대상 전문성 글 — 반드시 지킬 것):
+- 독자는 소상공인·개인사업자·법인 대표다. 목적은 정보 나열이 아니라 "이 필자에게 물어보면 되겠다"는 신뢰를 주는 것이다.
+- 글 흐름: ① 핵심 결론 먼저 → ② 판단 기준: 왜 그렇게 봐야 하는지 원리를 설명 → ③ 사장님들이 자주 하는 실수 유형과 그 결과
+  → ④ 계산·적용 예시(가정한 예시임을 밝힌다) → ⑤ 바로 쓸 수 있는 체크리스트(문단 여러 줄로) → ⑥ 업종·매출·직원 수에 따라 달라지는 지점으로 마무리.
+- 필자 목소리: 실무를 잘 아는 한 사람이 사장님 옆에서 설명하듯, 확신 있게 그러나 단정하지 않게. "제가 보기에는"처럼 1인칭을 써도 된다.
+- 어려운 용어(과세표준·필요경비·주휴수당 등)는 나오자마자 쉬운 말로 푼다.
+- 세율·금액·기한·지원 조건은 해마다 바뀐다. 기준 연도를 밝히고 "최신 기준은 국세청 홈택스·고용노동부 등 해당 기관에서 확인"이라고 쓴다. 확인되지 않은 숫자·법 조항은 지어내지 마라.
+- 신고 대리·법률 판단이 필요한 부분은 "세무사·노무사 등 전문가 확인"으로 안내한다.
+- 절대 지어내지 말 것: 필자의 경력·자격·상담 건수·실제 고객 사례·후기. 사례는 "예를 들어 이런 경우"처럼 가정 예시로만 쓴다.
+${bio ? `- 필자 소개(사용자가 적은 실제 내용 — 이 범위 안에서만, 부풀리지 말고, 도입이나 마무리에 한 번만 자연스럽게): ${bio}` : "- 필자 소개가 없으므로 경력·자격은 언급하지 말고 전문가의 관점과 설명력으로만 신뢰를 준다."}
 - 수익화(애드포스트) 블로그다: 한 주제를 깊이 있게, 같은 말 반복·키워드 나열·낚시성 제목 금지.
-- 마지막 문단은 "업종·매출·직원 수에 따라 달라지는 부분"을 짚으며 자연스럽게 마무리한다. 연락처·링크·"상담 신청" 같은 광고 문구는 본문에 쓰지 마라(필요하면 앱이 따로 붙인다).
+- 연락처·링크·"상담 신청" 같은 광고 문구는 본문에 쓰지 마라(필요하면 앱이 글 끝에 따로 붙인다).
 `.trim();
+}
 
-export function platformStyle(target: Target, styleGuide = "", category?: Category): string {
-  if (target === "naver") return [NAVER_BIZ, category ? "- " + CATEGORY_RULE[category] : ""].filter(Boolean).join("\n");
+export function platformStyle(target: Target, styleGuide = "", category?: Category, authorBio = ""): string {
+  if (target === "naver") return [naverExpertStyle(authorBio), category ? "- " + CATEGORY_RULE[category] : ""].filter(Boolean).join("\n");
   const own = styleGuide.trim()
     ? `\n\n이 블로그 고유의 글투(사장님 블로그 최근 글에서 배운 것 — 위 규칙과 겹치면 이쪽을 따르되, 문장을 베끼지는 마라):\n${styleGuide.trim()}`
     : "";
@@ -162,10 +174,11 @@ export function modePrompt(
   target: Target = "naver",
   styleGuide = "",
   category?: Category,
+  authorBio = "",
 ) {
   return [
     (mode === "review" ? REVIEW : BRANDING).replace("{{HEADING_RULE}}", HEADING_RULE[target]),
-    platformStyle(target, styleGuide, category),
+    platformStyle(target, styleGuide, category, authorBio),
     "",
     `주제: ${topic}`,
     `사용자가 준 핵심 내용:\n${details || "(없음 — 주제만으로 일반적인 내용으로 쓰되 사실을 지어내지 마라)"}`,
