@@ -91,7 +91,7 @@
 
 ## 개발자용
 
-- 원본 명세: `docs/PROMPT.md` · 만들면서 새로 알아낸 함정: `docs/FINDINGS.md`
+- 원본 명세(프롬프트)는 공개 저장소에 두지 않고 따로 보관합니다 · 만들면서 새로 알아낸 함정: `docs/FINDINGS.md`
 
 - `npm test` — 계산·안전장치·수집 필터·최소 재현(계정·AI 불필요)
 - `npm run test:harness` — 가짜 에디터(scripts/harness)로 입력 순서 검증
