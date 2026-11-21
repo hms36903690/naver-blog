@@ -1,4 +1,4 @@
-import { CATEGORY_LABEL, categoriesFor, TISTORY_RULES, type Category, type Mode, type PhotoSource, type Target } from "../types";
+import { AI_IMAGES, CATEGORY_LABEL, categoriesFor, TISTORY_RULES, type Category, type Mode, type PhotoSource, type Target } from "../types";
 
 /** 모든 모드 공통: 마크다운 금지 + 섹션 JSON 형식 설명 */
 export const SECTION_FORMAT = `
@@ -28,12 +28,17 @@ export function photoHintFor(
   descs?: Array<{ name: string; desc: string }>,
   target: Target = "naver",
 ): string {
-  if (target === "tistory" && (photoSource === "ai" || photoSource === "crawl"))
+  // AI 그림: 블로그 구분 없이 글마다 1~3장(사용자 지정). 대표 1장은 도입 뒤.
+  if (photoSource === "ai")
+    return [
+      `사진 규칙: image 섹션을 ${AI_IMAGES.min}~${AI_IMAGES.max}개만 넣어라. 첫 장은 도입 문단 바로 뒤(글의 대표 그림), 나머지는 본문에서 그림이 이해를 가장 돕는 자리에(소제목 구획마다 많아야 1장).`,
+      "query 에는 \"어떤 장면을 그려야 하는지\" 한국어로 구체적으로 묘사하라(피사체·구도·분위기). 글자·숫자가 들어간 장면(검사지·표·그래프·서류 글씨)은 피하라.",
+      "사람 얼굴이 주인공이 아닌 장면(사물·손·뒷모습·풍경)으로. caption 은 사진 아래 짧은 설명(20자 내외).",
+    ].join("\n");
+  if (target === "tistory" && photoSource === "crawl")
     return [
       `사진 규칙: image 섹션을 ${TISTORY_RULES.minImages}~${TISTORY_RULES.maxImages}개만 넣어라(도입 뒤 1장, 본문 중간에 1~3장). 사진이 내용 설명을 돕는 자리에만.`,
-      photoSource === "ai"
-        ? "query 에는 \"어떤 장면을 그려야 하는지\" 한국어로 구체적으로 묘사하라(피사체·구도·분위기). 글자·숫자가 들어간 장면(검사지·표·그래프)은 피하라."
-        : "query 에는 이미지 검색어(2~4단어)를 써라.",
+      "query 에는 이미지 검색어(2~4단어)를 써라.",
       "사람 얼굴이 주인공이 아닌 장면(사물·손·뒷모습·풍경)으로. caption 은 사진 아래 짧은 설명(20자 내외).",
     ].join("\n");
   switch (photoSource) {
@@ -50,13 +55,6 @@ export function photoHintFor(
         .filter(Boolean)
         .join("\n");
     }
-    case "ai":
-      return [
-        "사진 규칙: image 섹션을 6~8개 넉넉히 배치하라(일부는 생성에 실패할 수 있다).",
-        "query 에는 \"어떤 장면을 그려야 하는지\" 한국어로 구체적으로 묘사하라(피사체·구도·분위기).",
-        "사람 얼굴이 주인공이 아닌 장면(사물·풍경·클로즈업·손동작·뒷모습)으로.",
-        "caption 은 사진 아래 짧은 설명(20자 내외).",
-      ].join("\n");
     case "crawl":
       return [
         "사진 규칙: image 섹션을 6~8개 넉넉히 배치하라(일부 자리는 적합한 사진을 못 찾는다).",

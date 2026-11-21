@@ -83,10 +83,12 @@ export const bodyChars = (d: Draft) =>
   d.sections.reduce((n, s) => n + (s.type === "paragraph" || s.type === "heading" || s.type === "quote" ? s.text.length : 0), 0);
 
 /**
- * 티스토리 글 기준(사용자 지정): 본문 1,500~2,000자, 사진 2~4장.
+ * 티스토리 글 기준(사용자 지정): 본문 1,500~2,000자, 검색 사진은 2~4장.
+ * AI 그림은 블로그 구분 없이 글마다 1~3장(사용자 지정).
  * AI 는 분량을 정확히 못 맞추므로 검증은 여유를 둔다(1,300~2,300). 벗어나면 재시도.
  */
 export const TISTORY_RULES = { minChars: 1500, maxChars: 2000, checkMin: 1300, checkMax: 2300, minImages: 2, maxImages: 4 };
+export const AI_IMAGES = { min: 1, max: 3 };
 
 export function draftSchemaFor(photoSource: PhotoSource, localCount = 0, target: Target = "naver") {
   const lengthOk = (d: Draft) => target !== "tistory" || (bodyChars(d) >= TISTORY_RULES.checkMin && bodyChars(d) <= TISTORY_RULES.checkMax);
@@ -96,6 +98,10 @@ export function draftSchemaFor(photoSource: PhotoSource, localCount = 0, target:
   if (photoSource === "local")
     return DraftBase.refine((d) => countImages(d) === localCount, {
       message: `image 섹션이 정확히 ${localCount}개여야 합니다.`,
+    }).refine(lengthOk, lengthMsg);
+  if (photoSource === "ai")
+    return DraftBase.refine((d) => countImages(d) >= AI_IMAGES.min && countImages(d) <= AI_IMAGES.max, {
+      message: `image 섹션이 ${AI_IMAGES.min}~${AI_IMAGES.max}개여야 합니다.`,
     }).refine(lengthOk, lengthMsg);
   if (target === "tistory")
     return DraftBase.refine((d) => countImages(d) >= TISTORY_RULES.minImages && countImages(d) <= TISTORY_RULES.maxImages, {

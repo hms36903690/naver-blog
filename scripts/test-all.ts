@@ -131,7 +131,7 @@ async function main() {
 
   // ── 사진 소스별 스키마 ──
   const mk = (n: number) => ({ title: "제목", sections: [{ type: "paragraph", text: "a" }, { type: "paragraph", text: "b" }, { type: "paragraph", text: "c" }, ...Array.from({ length: n }, () => ({ type: "image", query: "q" }))] });
-  ok("crawl/ai: 이미지 6개 이상", !draftSchemaFor("crawl").safeParse(mk(5)).success && draftSchemaFor("ai").safeParse(mk(6)).success);
+  ok("네이버 crawl: 이미지 6개 이상", !draftSchemaFor("crawl").safeParse(mk(5)).success && draftSchemaFor("crawl").safeParse(mk(6)).success);
   ok("local: 정확히 사진 장수", draftSchemaFor("local", 4).safeParse(mk(4)).success && !draftSchemaFor("local", 4).safeParse(mk(6)).success);
   ok("none: 이미지 0개", draftSchemaFor("none").safeParse(mk(0)).success && !draftSchemaFor("none").safeParse(mk(1)).success);
 
@@ -144,11 +144,12 @@ async function main() {
       ...Array.from({ length: imgs }, () => ({ type: "image", query: "q" })),
     ],
   });
-  ok("티스토리: 1,700자·사진 3장 통과", draftSchemaFor("ai", 0, "tistory").safeParse(mkT(1700, 3)).success);
-  ok("티스토리: 사진 6장은 반려(2~4장)", !draftSchemaFor("ai", 0, "tistory").safeParse(mkT(1700, 6)).success);
-  ok("티스토리: 3,000자는 반려", !draftSchemaFor("ai", 0, "tistory").safeParse(mkT(3000, 3)).success);
+  ok("티스토리 검색사진: 1,700자·사진 3장 통과", draftSchemaFor("crawl", 0, "tistory").safeParse(mkT(1700, 3)).success);
+  ok("티스토리 검색사진: 6장은 반려(2~4장)", !draftSchemaFor("crawl", 0, "tistory").safeParse(mkT(1700, 6)).success);
+  ok("티스토리: 3,000자는 반려", !draftSchemaFor("ai", 0, "tistory").safeParse(mkT(3000, 2)).success);
+  ok("AI 그림: 네이버·티스토리 모두 1~3장", draftSchemaFor("ai", 0, "tistory").safeParse(mkT(1700, 3)).success && draftSchemaFor("ai").safeParse(mkT(3000, 1)).success && !draftSchemaFor("ai").safeParse(mkT(3000, 4)).success && !draftSchemaFor("ai", 0, "tistory").safeParse(mkT(1700, 0)).success);
   ok("티스토리: 사진 없음이면 0장 + 분량 검사", draftSchemaFor("none", 0, "tistory").safeParse(mkT(1600, 0)).success && !draftSchemaFor("none", 0, "tistory").safeParse(mkT(900, 0)).success);
-  ok("네이버는 기존대로(6장 이상, 분량 제한 없음)", draftSchemaFor("ai").safeParse(mkT(3000, 6)).success);
+  ok("네이버 검색사진은 기존대로(6장 이상, 분량 제한 없음)", draftSchemaFor("crawl").safeParse(mkT(3000, 6)).success);
   ok("본문 글자 수 계산", bodyChars(mkT(1700, 3) as never) === 1700);
 
   // ── 네이버 인바운드: 글 끝 상담 신청 안내 ──
