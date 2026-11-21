@@ -74,6 +74,7 @@ const MIGRATIONS: Array<{ table: string; column: string; ddl: string }> = [
   { table: "jobs", column: "inputs", ddl: "ALTER TABLE jobs ADD COLUMN inputs TEXT" },
   { table: "images", column: "gen_prompt", ddl: "ALTER TABLE images ADD COLUMN gen_prompt TEXT" },
   { table: "drafts", column: "category", ddl: "ALTER TABLE drafts ADD COLUMN category TEXT" },
+  { table: "drafts", column: "tags", ddl: "ALTER TABLE drafts ADD COLUMN tags TEXT" },
 ];
 
 function migrate(db: DB) {

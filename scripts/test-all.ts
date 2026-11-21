@@ -173,6 +173,10 @@ async function main() {
   ok("카테고리 이름 맞추기(티스토리)", categoryFromLabel("금융 재테크", "tistory") === "money" && categoryFromLabel("보험·건강", "tistory") === "health");
   ok("다른 블로그 카테고리·엉뚱한 이름은 무시", categoryFromLabel("세금", "tistory") === undefined && categoryFromLabel("여행", "naver") === undefined);
 
+  // ── 태그 정리 ──
+  const { cleanTags } = await import("@/lib/types");
+  ok("태그 정리: # 떼기·띄어쓰기 제거·중복 제거·최대 10개", JSON.stringify(cleanTags(["#종합 소득세", "종합소득세", "##절세", "", ...Array.from({ length: 12 }, (_, i) => "t" + i)])) === JSON.stringify(["종합소득세", "절세", "t0", "t1", "t2", "t3", "t4", "t5", "t6", "t7"]));
+
   // ── 7-8 마크다운 무력화 ──
   const md = "정말 좋았어요~~ **진짜** `코드`\n# 제목\n> 인용\n- 목록\n물결~ 하나";
   const neu = neutralizeMarkdown(md);

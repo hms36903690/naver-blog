@@ -1,6 +1,6 @@
 import { runClaudeJson } from "../claude";
 import { CATEGORY_LABEL, draftSchemaFor, NAVER_CATEGORIES, IdeaList, type Category, type Draft, type Idea, type PhotoSource, type Source, type Target } from "../types";
-import { categoryInstruction, photoHintFor, platformStyle, SECTION_FORMAT } from "./templates";
+import { categoryInstruction, photoHintFor, tagInstruction, platformStyle, SECTION_FORMAT } from "./templates";
 
 function packSources(sources: Source[]): string {
   return sources
@@ -75,6 +75,7 @@ ${photoHintFor(photoSource, 0, undefined, target)}
 
 ${SECTION_FORMAT}
 ${categoryInstruction(target, category)}
+${tagInstruction(target)}
 `.trim();
   return runClaudeJson(prompt, draftSchemaFor(photoSource, 0, target), { onRetry });
 }

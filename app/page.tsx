@@ -38,7 +38,7 @@ type JobDetail = {
   job: { id: number; keyword: string; status: string; stage: string | null; error: string | null; mode: string; inputs?: string };
   ideas: Array<{ id: number; title: string; angle: string; chosen: number }>;
   sources: Array<{ id: number; type: string; title: string; url: string }>;
-  draft: { title: string; sections: Section[]; category?: string | null } | null;
+  draft: { title: string; sections: Section[]; category?: string | null; tags?: string[] } | null;
   images: ImageRow[];
   post: { status: string; blog_url: string | null; screenshot: string | null; note: string | null } | null;
   logs: Array<{ id: number; level: string; message: string }>;
@@ -71,6 +71,94 @@ function renderParagraph(text: string, hl?: string | null) {
       <mark>{hl}</mark>
       {text.slice(at + hl.length)}
     </>
+  );
+}
+
+/** [글 복사] — 붙여넣을 곳에서 서식이 살도록 HTML 과 일반 글자를 함께 클립보드에 넣는다 */
+function draftToClipboard(d: NonNullable<JobDetail["draft"]>, images: ImageRow[]): { html: string; text: string } {
+  const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const has = new Set(images.filter((i) => i.verdict_ok && i.local_path).map((i) => i.section_index));
+  const html: string[] = [`<h1>${esc(d.title)}</h1>`];
+  const text: string[] = [d.title, ""];
+  let n = 0;
+  d.sections.forEach((s, i) => {
+    switch (s.type) {
+      case "heading":
+        html.push(`<h2>${esc(s.text)}</h2>`);
+        text.push(s.text, "");
+        break;
+      case "paragraph": {
+        const at = s.highlight ? s.text.indexOf(s.highlight) : -1;
+        html.push(
+          at < 0 ? `<p>${esc(s.text)}</p>` : `<p>${esc(s.text.slice(0, at))}<b>${esc(s.highlight!)}</b>${esc(s.text.slice(at + s.highlight!.length))}</p>`,
+        );
+        text.push(s.text, "");
+        break;
+      }
+      case "quote":
+        html.push(`<blockquote>${esc(s.text)}</blockquote>`);
+        text.push(s.text, "");
+        break;
+      case "divider":
+        html.push("<hr>");
+        text.push("────────", "");
+        break;
+      case "image":
+        if (!has.has(i)) break; // 사진을 못 구한 자리는 뺀다
+        n++;
+        html.push(`<p>[사진 ${n}${s.caption ? ` — ${esc(s.caption)}` : ""}]</p>`);
+        text.push(`[사진 ${n}${s.caption ? ` — ${s.caption}` : ""}]`, "");
+        break;
+    }
+  });
+  const tags = (d.tags ?? []).map((t) => "#" + t).join(" ");
+  if (tags) {
+    html.push(`<p>${esc(tags)}</p>`);
+    text.push(tags);
+  }
+  return { html: html.join("\n"), text: text.join("\n").trim() };
+}
+
+function CopyButton({ d, images }: { d: NonNullable<JobDetail["draft"]>; images: ImageRow[] }) {
+  const [msg, setMsg] = useState("");
+  async function copy() {
+    const { html, text } = draftToClipboard(d, images);
+    try {
+      await navigator.clipboard.write([
+        new ClipboardItem({ "text/html": new Blob([html], { type: "text/html" }), "text/plain": new Blob([text], { type: "text/plain" }) }),
+      ]);
+      setMsg("복사했습니다. 붙여넣을 곳에서 Ctrl + V 를 누르세요.");
+    } catch {
+      try {
+        await navigator.clipboard.writeText(text);
+        setMsg("글자만 복사했습니다(서식 없이). 붙여넣을 곳에서 Ctrl + V 를 누르세요.");
+      } catch {
+        setMsg("복사하지 못했습니다. 미리보기 글을 마우스로 끌어서 복사해 주세요.");
+      }
+    }
+    setTimeout(() => setMsg(""), 6000);
+  }
+  async function copyTags() {
+    try {
+      await navigator.clipboard.writeText((d.tags ?? []).map((t) => "#" + t).join(" "));
+      setMsg("태그를 복사했습니다. 블로그의 태그 칸에 Ctrl + V 로 붙여넣으세요.");
+    } catch {
+      setMsg("복사하지 못했습니다. 아래 태그를 마우스로 끌어서 복사해 주세요.");
+    }
+    setTimeout(() => setMsg(""), 6000);
+  }
+  return (
+    <div className="row" style={{ margin: "8px 0", flexWrap: "wrap" }}>
+      <button type="button" className="btn" onClick={copy}>
+        글 복사 📋
+      </button>
+      {(d.tags ?? []).length > 0 && (
+        <button type="button" className="btn" onClick={copyTags}>
+          태그만 복사 #
+        </button>
+      )}
+      <span className="hint">{msg || "제목·본문을 서식(소제목·굵게)과 함께 복사합니다. 사진 자리는 [사진 1]처럼 표시됩니다."}</span>
+    </div>
   );
 }
 
@@ -727,6 +815,12 @@ export default function Page() {
               {detail.draft && (
                 <details open>
                   <summary>글 미리보기{detail.draft.category ? ` — 카테고리: ${detail.draft.category}` : ""}</summary>
+                  <CopyButton d={detail.draft} images={detail.images} />
+                  {(detail.draft.tags ?? []).length > 0 && (
+                    <p className="hint" style={{ margin: "0 0 8px" }}>
+                      태그: {(detail.draft.tags ?? []).map((t) => "#" + t).join(" ")}
+                    </p>
+                  )}
                   <Preview
                     d={detail.draft}
                     images={detail.images}

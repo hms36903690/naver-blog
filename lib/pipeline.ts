@@ -19,7 +19,7 @@ import { newContext } from "./playwright";
 import { findImageForSlot, type SeenImages } from "./scrape/images";
 import { scrapeTrends } from "./scrape/trends";
 import { getSettings } from "./settings";
-import { bodyChars, CATEGORY_LABEL, categoryFromLabel, draftSchemaFor, type Draft, type ImageStyle, type JobInput, type PhotoSource, type Source } from "./types";
+import { bodyChars, CATEGORY_LABEL, categoryFromLabel, cleanTags, draftSchemaFor, type Draft, type ImageStyle, type JobInput, type PhotoSource, type Source } from "./types";
 
 const PUBLISH_CAP_MS = 15 * 60 * 1000;
 
@@ -261,9 +261,11 @@ export async function runJob(jobId: number): Promise<void> {
     const decidedCat = input.category ?? categoryFromLabel(draft.category, target);
     const catLabel = decidedCat ? CATEGORY_LABEL[decidedCat] : null;
     if (catLabel) log(`카테고리: ${catLabel}${input.category ? "" : " (글 내용에 맞게 AI가 골랐습니다)"}`);
+    const tags = cleanTags(draft.tags);
+    if (tags.length) log(`태그 ${tags.length}개: ${tags.map((t) => "#" + t).join(" ")}`);
     const dr = db
-      .prepare("INSERT INTO drafts (job_id, idea_id, title, body_json, category) VALUES (?,?,?,?,?)")
-      .run(jobId, ideaId, draft.title, JSON.stringify(draft.sections), catLabel);
+      .prepare("INSERT INTO drafts (job_id, idea_id, title, body_json, category, tags) VALUES (?,?,?,?,?,?)")
+      .run(jobId, ideaId, draft.title, JSON.stringify(draft.sections), catLabel, JSON.stringify(tags));
     const draftId = Number(dr.lastInsertRowid);
     log(`초안 완성: "${draft.title}" (본문 ${bodyChars(draft).toLocaleString()}자, ${draft.sections.length}개 블록)`, "ok");
 
@@ -324,7 +326,7 @@ export async function runJob(jobId: number): Promise<void> {
       if (tr.status === "draft_saved" || tr.status === "draft_unverified") {
         const bc = bodyChars(draft);
         const imgs = draft.sections.filter((x) => x.type === "image").length;
-        tr.note += ` (본문 ${bc.toLocaleString()}자, 사진 자리 ${imgs}곳${catLabel ? `, 카테고리: ${catLabel} — 발행할 때 티스토리 카테고리를 '${catLabel}'로 골라 주세요` : ""})`;
+        tr.note += ` (본문 ${bc.toLocaleString()}자, 사진 자리 ${imgs}곳${catLabel ? `, 카테고리: ${catLabel} — 발행할 때 티스토리 카테고리를 '${catLabel}'로 골라 주세요` : ""}${tags.length ? `, 태그 ${tags.length}개 — [태그만 복사]로 티스토리 태그 칸에 붙여넣으세요` : ""})`;
       }
       recordPost(jobId, draftId, tr);
       if (tr.status === "failed") {

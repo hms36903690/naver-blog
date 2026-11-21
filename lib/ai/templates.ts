@@ -160,6 +160,13 @@ ${category ? "- " + CATEGORY_RULE[category] : ""}
 }
 
 /** 글과 함께 블로그 카테고리도 정하게 한다(사용자가 골랐으면 그대로). */
+/** 글과 함께 블로그 태그도 만들게 한다 */
+export function tagInstruction(target: Target): string {
+  return target === "tistory"
+    ? `태그: 출력 JSON 의 "tags" 에 구글·티스토리에서 사람들이 실제로 검색할 키워드 5~8개를 배열로 넣어라. 각 태그는 # 없이, 띄어쓰기 없이(예: "공복혈당", "건강검진결과"). 제목의 핵심 키워드를 꼭 포함하고, 글과 상관없는 인기 단어로 채우지 마라.`
+    : `태그: 출력 JSON 의 "tags" 에 네이버에서 사장님들이 실제로 검색할 키워드 6~10개를 배열로 넣어라. 각 태그는 # 없이, 띄어쓰기 없이(예: "종합소득세", "개인사업자세금"). 제목의 핵심 키워드와 업종·상황 키워드를 섞고, 글과 상관없는 인기 단어로 채우지 마라.`;
+}
+
 export function categoryInstruction(target: Target, chosen?: Category): string {
   if (chosen) return `카테고리: 출력 JSON 에 "category": "${CATEGORY_LABEL[chosen]}" 를 넣어라.`;
   const names = categoriesFor(target).map((c) => CATEGORY_LABEL[c]);
@@ -187,5 +194,6 @@ export function modePrompt(
     "",
     SECTION_FORMAT,
     categoryInstruction(target, category),
+    tagInstruction(target),
   ].join("\n");
 }

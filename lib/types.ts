@@ -20,7 +20,20 @@ export const DraftBase = z.object({
   sections: z.array(Section).min(3),
   /** AI 가 고른(또는 사용자가 정한) 블로그 카테고리 이름 */
   category: z.string().nullish(),
+  /** 블로그 태그(검색어) — AI 가 글에 맞게 만든다 */
+  tags: z.array(z.string()).nullish(),
 });
+
+/** 태그 정리: # 떼기, 공백 제거, 중복 제거, 최대 10개·20자 */
+export function cleanTags(tags: string[] | null | undefined): string[] {
+  const out: string[] = [];
+  for (const t of tags ?? []) {
+    const x = String(t).replace(/^#+/, "").replace(/\s+/g, "").replace(/[,#]/g, "").slice(0, 20);
+    if (x && !out.includes(x)) out.push(x);
+    if (out.length >= 10) break;
+  }
+  return out;
+}
 export type Draft = z.infer<typeof DraftBase>;
 
 export type PhotoSource = "local" | "crawl" | "ai" | "none";
