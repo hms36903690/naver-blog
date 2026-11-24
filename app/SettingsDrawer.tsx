@@ -93,6 +93,14 @@ export default function SettingsDrawer(props: {
     props.onChange(j.settings);
     setLearning({ busy: false, msg: `최근 글 ${j.posts}편을 읽고 글투를 배웠습니다. 아래 내용은 직접 고쳐도 됩니다.` });
   }
+  const [ndiag, setNdiag] = useState<{ busy: boolean; summary?: string[]; detail?: unknown; error?: string }>({ busy: false });
+  async function diagnoseNaver() {
+    if (!confirm("네이버 글쓰기 화면을 열어 버튼들을 재 봅니다(1~2분).\n\n• 발행하지 않고, 글자도 넣지 않습니다.\n• 시험용 작은 사진 1장을 넣어 보므로, 네이버 '임시저장' 목록에 빈 글이 남을 수 있습니다(지워도 됩니다).\n• 네이버에서 직접 쓰다 만 글이 있으면 먼저 저장해 두세요.\n\n시작할까요?")) return;
+    setNdiag({ busy: true });
+    const r = await fetch("/api/naver/diagnose", { method: "POST" });
+    const j = await r.json();
+    setNdiag(r.ok ? { busy: false, summary: j.summary, detail: j.detail } : { busy: false, error: j.error || "점검 실패" });
+  }
   const [diag, setDiag] = useState<{ busy: boolean; summary?: string[]; detail?: unknown; error?: string }>({ busy: false });
   async function diagnose() {
     setDiag({ busy: true });
@@ -215,6 +223,29 @@ export default function SettingsDrawer(props: {
             AI 응답 대기<small>{range("claudeTimeoutSec")}초</small>
           </div>
           <Num k="claudeTimeoutSec" s={s} limits={limits} save={save} unit="초" />
+        </div>
+
+        <h3>네이버 화면 점검</h3>
+        <div className="set" style={{ display: "block" }}>
+          <div style={{ marginBottom: 6 }}>
+            네이버 글쓰기 화면 점검
+            <small>네이버 로그인 뒤, 실제 발행 전에 한 번 눌러 주세요. 제목·본문·소제목·형광펜·사진·발행 버튼·공개 범위를 앱이 찾는지 재기만 합니다(발행 안 함). 결과를 캡처해 보내주시면 됩니다.</small>
+          </div>
+          <button className="btn" disabled={ndiag.busy} onClick={diagnoseNaver}>
+            {ndiag.busy ? "점검 중… (1~2분)" : "네이버 화면 점검"}
+          </button>
+          {ndiag.error && <p className="err">{ndiag.error}</p>}
+          {ndiag.summary && (
+            <div style={{ marginTop: 8 }}>
+              {ndiag.summary.map((l) => (
+                <div key={l} className="hint">{l}</div>
+              ))}
+              <details>
+                <summary className="hint">자세한 결과(복사해서 보내기)</summary>
+                <textarea readOnly style={{ minHeight: 160, fontSize: 11 }} value={JSON.stringify(ndiag.detail, null, 1)} />
+              </details>
+            </div>
+          )}
         </div>
 
         <h3>네이버 글쓴이</h3>

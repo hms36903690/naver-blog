@@ -11,7 +11,8 @@
     "test:harness": "tsx scripts/test-harness.ts",
     "test:ai": "tsx scripts/test-ai.ts && tsx scripts/test-vision.ts",
     "test:tistory": "tsx scripts/test-tistory.ts",
-    "test:relogin": "tsx scripts/test-relogin.ts"
+    "test:relogin": "tsx scripts/test-relogin.ts",
+    "test:naver-diagnose": "tsx scripts/test-naver-diagnose.ts"
   },
   "dependencies": {
     "next": "^15.5.29",
