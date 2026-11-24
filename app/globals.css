@@ -150,3 +150,9 @@ a.btn { display: inline-block; text-decoration: none; color: var(--text); }
 .switch[aria-checked="true"] { background: color-mix(in srgb, var(--sw, var(--act)) 40%, var(--panel2)); border-color: var(--sw, var(--act)); }
 .switch[aria-checked="true"]::after { left: 22px; background: var(--sw, var(--act)); }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* 발행 실패 조치 안내 */
+.fixbox { border: 1px solid var(--armed); border-left: 4px solid var(--armed); border-radius: 8px; padding: 12px 14px; background: color-mix(in srgb, var(--armed) 8%, var(--panel)); }
+.fixbox ol { margin: 8px 0 10px; padding-left: 20px; }
+.fixbox li { margin: 4px 0; }
+.btn.primary { background: var(--act); color: #0b0d10; border-color: var(--act); font-weight: 700; }

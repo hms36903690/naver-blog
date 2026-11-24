@@ -178,6 +178,16 @@ async function main() {
   const { cleanTags } = await import("@/lib/types");
   ok("태그 정리: # 떼기·띄어쓰기 제거·중복 제거·최대 10개", JSON.stringify(cleanTags(["#종합 소득세", "종합소득세", "##절세", "", ...Array.from({ length: 12 }, (_, i) => "t" + i)])) === JSON.stringify(["종합소득세", "절세", "t0", "t1", "t2", "t3", "t4", "t5", "t6", "t7"]));
 
+  // ── 발행 실패 조치 안내 ──
+  const { diagnoseFailure } = await import("@/lib/failure");
+  const dg = (t: string, target: "naver" | "tistory" = "naver", hasDraft = true) => diagnoseFailure(t, { target, hasDraft });
+  ok("조치: 네이버 로그인 풀림 → [네이버 로그인]+[다시 시도]", JSON.stringify(dg("글쓰기 로그인이 풀렸습니다. [네이버 로그인]을 다시…").actions) === JSON.stringify(["naverLogin", "retry"]));
+  ok("조치: 티스토리 로그인 → [티스토리 로그인]", dg("티스토리 로그인이 풀렸습니다.", "tistory").actions[0] === "tistoryLogin");
+  ok("조치: 게시글 주소 미확인 → 먼저 블로그 확인(중복 발행 방지)", dg("발행 버튼을 눌렀지만 게시글 주소로 바뀌지 않았습니다.").actions[0] === "naverBlog");
+  ok("조치: 공개 범위 → 안전 정지 안내", /공개 범위/.test(dg("공개 범위를 확인할 수 없어 발행하지 않고 중단했습니다.").title));
+  ok("조치: 글이 없으면 [처음부터 다시 만들기]", dg("본문 쓰기 실패: …", "naver", false).actions.includes("remake") && !dg("알 수 없는 오류", "naver", false).actions.includes("retry"));
+  ok("조치: 하루 한도 → 설정+다시 시도", JSON.stringify(dg("오늘 발행 한도(3편)에 도달했습니다.").actions) === JSON.stringify(["settings", "retry"]));
+
   // ── 7-8 마크다운 무력화 ──
   const md = "정말 좋았어요~~ **진짜** `코드`\n# 제목\n> 인용\n- 목록\n물결~ 하나";
   const neu = neutralizeMarkdown(md);

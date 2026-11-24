@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { diagnoseFailure, type FixAction } from "@/lib/failure";
 import { POST_LABEL, STATUS_LABEL, VISIBILITY_LABEL } from "@/lib/labels";
 import SettingsDrawer, { type Limits, type Settings } from "./SettingsDrawer";
 
@@ -292,6 +293,7 @@ export default function Page() {
     const r = await fetch("/api/jobs");
     if (r.ok) setJobs((await r.json()).jobs);
   }, []);
+  const [reloadKey, setReloadKey] = useState(0); // [다시 시도] 후 SSE 를 다시 연결하기 위함
   const loadDetail = useCallback(async (id: number) => {
     const r = await fetch(`/api/jobs/${id}`);
     if (r.ok) {
@@ -334,7 +336,7 @@ export default function Page() {
       stop = true;
       es?.close();
     };
-  }, [selected, loadDetail, loadJobs, loadUsage]);
+  }, [selected, loadDetail, loadJobs, loadUsage, reloadKey]);
 
   // 열쇠가 없으면 AI 그리기를 쓸 수 없으므로 처음 한 번만 "사진 없음"으로
   const photoDefaultChecked = useRef(false);
@@ -457,6 +459,58 @@ export default function Page() {
       setTsLoggingIn(false);
     }
   }
+
+  /** [다시 시도] — 글·그림 그대로 발행만 다시 */
+  async function retryJob(id: number) {
+    const r = await fetch(`/api/jobs/${id}/retry`, { method: "POST" });
+    const j = await r.json();
+    if (!r.ok) return alert(j.error || "다시 시도하지 못했습니다");
+    await loadJobs();
+    setReloadKey((k) => k + 1);
+  }
+  /** [처음부터 다시 만들기] — 같은 입력으로 새 작업 */
+  async function remakeJob(inputs?: string) {
+    let body: Record<string, unknown> = {};
+    try {
+      body = JSON.parse(inputs || "{}");
+    } catch {}
+    delete body.idea; // 고른 제목은 유지하고 싶으면 keyword 로 들어가 있다
+    delete body.sources;
+    const r = await fetch("/api/jobs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const j = await r.json();
+    if (!r.ok) return alert(j.error || "다시 만들지 못했습니다");
+    await loadJobs();
+    setSelected(j.id);
+  }
+  /** [삭제] — 앱 기록만 지움(블로그 글은 그대로) */
+  async function deleteJob(id: number) {
+    if (!confirm(`#${id} 작업 기록을 앱에서 지울까요?\n\n• 블로그에 이미 올라간 글이나 티스토리 임시저장 글은 지워지지 않습니다.\n• 이 작업의 글 미리보기와 사진 파일이 앱에서 지워집니다.`)) return;
+    const r = await fetch(`/api/jobs/${id}`, { method: "DELETE" });
+    const j = await r.json();
+    if (!r.ok) return alert(j.error || "지우지 못했습니다");
+    setSelected(null);
+    setDetail(null);
+    await loadJobs();
+    await loadUsage();
+  }
+  function runFix(a: FixAction, d: JobDetail) {
+    if (a === "retry") return retryJob(d.job.id);
+    if (a === "remake") return remakeJob(d.job.inputs);
+    if (a === "naverLogin") return login();
+    if (a === "tistoryLogin") return tistoryLogin();
+    if (a === "settings") return setDrawer(true);
+    if (a === "naverBlog") return window.open(status?.naver.blogId ? `https://blog.naver.com/${status.naver.blogId}` : "https://blog.naver.com/MyBlog.naver", "_blank");
+    if (a === "tistoryWrite" && s?.tistoryBlog) return window.open(`https://${s.tistoryBlog}.tistory.com/manage/newpost/`, "_blank");
+  }
+  const FIX_LABEL: Record<FixAction, string> = {
+    retry: "다시 시도 (글·그림 그대로)",
+    remake: "처음부터 다시 만들기",
+    naverLogin: "네이버 로그인",
+    tistoryLogin: "티스토리 로그인",
+    settings: "설정 열기",
+    naverBlog: "내 네이버 블로그 열어 확인 ↗",
+    tistoryWrite: "티스토리 임시저장 목록 열기 ↗",
+  };
 
   async function openPhotoFolder(id: number) {
     const r = await fetch(`/api/open-folder?job=${id}`, { method: "POST" });
@@ -761,10 +815,49 @@ export default function Page() {
 
           {detail && selected === detail.job.id && (
             <section className="panel stack" aria-label="진행과 결과">
-              <h2>
-                #{detail.job.id} {detail.job.keyword} — {STATUS_LABEL[jobs.find((j) => j.id === selected)?.status ?? detail.job.status]}
-                {jobs.find((j) => j.id === selected)?.stage ? ` · ${jobs.find((j) => j.id === selected)?.stage}` : ""}
-              </h2>
+              <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
+                <h2 style={{ margin: 0 }}>
+                  #{detail.job.id} {detail.job.keyword} — {STATUS_LABEL[jobs.find((j) => j.id === selected)?.status ?? detail.job.status]}
+                  {jobs.find((j) => j.id === selected)?.stage ? ` · ${jobs.find((j) => j.id === selected)?.stage}` : ""}
+                </h2>
+                {!ACTIVE.includes(jobs.find((j) => j.id === selected)?.status ?? detail.job.status) && (
+                  <button type="button" className="btn" onClick={() => deleteJob(detail.job.id)} title="앱의 기록만 지웁니다(블로그 글은 그대로)">
+                    🗑 삭제
+                  </button>
+                )}
+              </div>
+              {(() => {
+                // 🔧 실패했을 때 조치 방법
+                const curStatus = jobs.find((j) => j.id === selected)?.status ?? detail.job.status;
+                if (ACTIVE.includes(curStatus)) return null;
+                const ps = detail.post?.status;
+                const failed = curStatus === "failed" || ps === "failed" || ps === "blocked" || ps === "draft_unverified";
+                if (!failed) return null;
+                let target: "naver" | "tistory" = "naver";
+                try {
+                  target = JSON.parse(detail.job.inputs || "{}").target === "tistory" ? "tistory" : "naver";
+                } catch {}
+                const g = diagnoseFailure(`${detail.post?.note ?? ""} ${detail.job.error ?? ""}`, { target, hasDraft: Boolean(detail.draft) });
+                return (
+                  <div className="fixbox">
+                    <b>🔧 해결 방법 — {g.title}</b>
+                    <ol>
+                      {g.steps.map((st) => (
+                        <li key={st}>{st}</li>
+                      ))}
+                    </ol>
+                    {g.actions.length > 0 && (
+                      <div className="row" style={{ flexWrap: "wrap" }}>
+                        {g.actions.map((a) => (
+                          <button key={a} type="button" className={a === "retry" || a === "remake" ? "btn primary" : "btn"} onClick={() => runFix(a, detail)}>
+                            {FIX_LABEL[a]}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
               <div className="logs" ref={logBox}>
                 {liveLogs.map((l) => (
                   <div key={l.id} className={l.level}>

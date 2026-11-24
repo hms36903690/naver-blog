@@ -291,108 +291,7 @@ export async function runJob(jobId: number): Promise<void> {
       log("글 끝에 상담 신청 안내를 붙였습니다");
     }
 
-    // 티스토리: 반자동 — 임시저장까지만(발행은 사람이)
-    if (target === "tistory") {
-      const nowT = getSettings();
-      if (nowT.killSwitch) {
-        recordPost(jobId, draftId, { status: "blocked", note: "전체 중단이 켜져 있어 티스토리에 저장하지 않았습니다." });
-        setJobStage(jobId, "done", "막힘");
-        return;
-      }
-      if (!nowT.dryRun && countTistoryDraftsThisWeek() >= nowT.tistoryWeeklyLimit) {
-        const note = `이번 주 티스토리 ${nowT.tistoryWeeklyLimit}편을 모두 채워 저장하지 않았습니다. 다음 주 월요일부터 다시 저장됩니다(설정에서 바꿀 수 있습니다).`;
-        recordPost(jobId, draftId, { status: "blocked", note });
-        log(note, "warn");
-        setJobStage(jobId, "done", "이번 주 한도");
-        return;
-      }
-      setJobStage(jobId, "publishing", nowT.dryRun ? "연습: 티스토리 글쓰기 화면에 입력 중" : "티스토리에 임시저장 중");
-      const ts = await verifyTistory();
-      if (ts.state !== "valid") {
-        recordPost(jobId, draftId, { status: "failed", note: ts.message });
-        log(ts.message, "error");
-        setJobStage(jobId, "failed", "티스토리 로그인 필요", ts.message);
-        return;
-      }
-      const upDir = path.join(paths.images, `job${jobId}`, "올릴사진");
-      const exported = exportPhotosForUpload(draft, images, upDir);
-      if (exported.length) log(`올릴 사진 ${exported.length}장을 '올릴사진' 폴더에 사진 1~${exported.length} 이름으로 정리했습니다`);
-      const tr = await Promise.race([
-        saveTistoryDraft({ jobId, blog: ts.blog, draft, images, dryRun: nowT.dryRun, headless: !nowT.showBrowser, log }),
-        new Promise<{ status: "failed"; note: string }>((res) =>
-          setTimeout(() => res({ status: "failed", note: "티스토리 작업이 15분 안에 끝나지 않아 중단했습니다." }), PUBLISH_CAP_MS),
-        ),
-      ]);
-      if (tr.status === "draft_saved" || tr.status === "draft_unverified") {
-        const bc = bodyChars(draft);
-        const imgs = draft.sections.filter((x) => x.type === "image").length;
-        tr.note += ` (본문 ${bc.toLocaleString()}자, 사진 자리 ${imgs}곳${catLabel ? `, 카테고리: ${catLabel} — 발행할 때 티스토리 카테고리를 '${catLabel}'로 골라 주세요` : ""}${tags.length ? `, 태그 ${tags.length}개 — [태그만 복사]로 티스토리 태그 칸에 붙여넣으세요` : ""})`;
-      }
-      recordPost(jobId, draftId, tr);
-      if (tr.status === "failed") {
-        log(tr.note, "error");
-        setJobStage(jobId, "failed", "티스토리 저장 실패", tr.note);
-      } else {
-        log(tr.note, tr.status === "draft_unverified" ? "warn" : "ok");
-        setJobStage(jobId, "done", tr.status === "dry_run" ? "연습 완료" : "임시저장됨");
-      }
-      return;
-    }
-
-    // 발행
-    setJobStage(jobId, "publishing", settings.dryRun ? "연습: 글쓰기 화면에 입력 중" : "네이버에 올리는 중");
-    const now = getSettings(); // 작업 도중 바뀐 설정(연습 모드·중단)을 반영
-    if (!now.dryRun) {
-      const g = checkPublishGuard(now);
-      if (g.blocked) {
-        recordPost(jobId, draftId, { status: "blocked", note: g.reason });
-        log(g.reason, "warn");
-        setJobStage(jobId, "done", "발행 막힘");
-        return;
-      }
-    }
-    const sess = await verifySession();
-    if (sess.state !== "valid") {
-      const note =
-        sess.state === "none"
-          ? "네이버 로그인이 필요합니다. 화면 위 [네이버 로그인]을 눌러주세요."
-          : sess.state === "write_expired"
-            ? "글쓰기 로그인이 풀렸습니다. [네이버 로그인]을 다시 눌러주시고 '로그인 상태 유지'를 꼭 체크해 주세요."
-            : `네이버 로그인 확인 실패: ${sess.message}`;
-      recordPost(jobId, draftId, { status: "failed", note });
-      log(note, "error");
-      setJobStage(jobId, "failed", "로그인 필요", note);
-      return;
-    }
-
-    const result = await Promise.race<PublishResult>([
-      publishDraft({
-        jobId,
-        draft,
-        images,
-        blogId: sess.blogId,
-        dryRun: now.dryRun,
-        visibility: now.visibility,
-        headless: !now.showBrowser,
-        headingAsQuote: input.mode !== "auto",
-        log,
-      }),
-      new Promise<PublishResult>((res) =>
-        setTimeout(() => res({ status: "failed", note: "글쓰기가 15분 안에 끝나지 않아 중단했습니다. 글은 임시저장 상태로 남아 있을 수 있습니다." }), PUBLISH_CAP_MS),
-      ),
-    ]);
-    if (catLabel && result.status !== "blocked") result.note += ` (카테고리: ${catLabel} — 네이버 블로그에서 이 카테고리로 옮겨 주세요)`;
-    recordPost(jobId, draftId, result);
-    if (result.status === "published") {
-      log(`발행 완료: ${result.url}`, "ok");
-      setJobStage(jobId, "done", "발행됨");
-    } else if (result.status === "dry_run") {
-      log("연습 완료 — 실제로 올리지 않았습니다. 완성 화면을 저장했습니다", "ok");
-      setJobStage(jobId, "done", "연습 완료");
-    } else {
-      log(result.note, "error");
-      setJobStage(jobId, "failed", "발행 실패", result.note);
-    }
+    await publishStage({ jobId, draftId, draft, images, input, catLabel, tags, log });
   } catch (e) {
     const msg = (e as Error).message || String(e);
     log(msg, "error");
@@ -400,3 +299,154 @@ export async function runJob(jobId: number): Promise<void> {
   }
 }
 
+type LogFn = (m: string, lvl?: "info" | "warn" | "error" | "ok") => void;
+
+/**
+ * 발행 단계만(글·그림은 이미 있다). runJob 의 마지막 단계이자 [다시 시도]가 쓰는 함수.
+ * 글을 새로 쓰지 않으므로 AI 사용량이 들지 않는다.
+ */
+async function publishStage(c: {
+  jobId: number;
+  draftId: number;
+  draft: Draft;
+  images: Map<number, string>;
+  input: JobInput;
+  catLabel: string | null;
+  tags: string[];
+  log: LogFn;
+}): Promise<void> {
+  const { jobId, draftId, draft, images, input, catLabel, tags, log } = c;
+  const target = input.target ?? "naver";
+  const settings = getSettings();
+  // 티스토리: 반자동 — 임시저장까지만(발행은 사람이)
+  if (target === "tistory") {
+    const nowT = getSettings();
+    if (nowT.killSwitch) {
+      recordPost(jobId, draftId, { status: "blocked", note: "전체 중단이 켜져 있어 티스토리에 저장하지 않았습니다." });
+      setJobStage(jobId, "done", "막힘");
+      return;
+    }
+    if (!nowT.dryRun && countTistoryDraftsThisWeek() >= nowT.tistoryWeeklyLimit) {
+      const note = `이번 주 티스토리 ${nowT.tistoryWeeklyLimit}편을 모두 채워 저장하지 않았습니다. 다음 주 월요일부터 다시 저장됩니다(설정에서 바꿀 수 있습니다).`;
+      recordPost(jobId, draftId, { status: "blocked", note });
+      log(note, "warn");
+      setJobStage(jobId, "done", "이번 주 한도");
+      return;
+    }
+    setJobStage(jobId, "publishing", nowT.dryRun ? "연습: 티스토리 글쓰기 화면에 입력 중" : "티스토리에 임시저장 중");
+    const ts = await verifyTistory();
+    if (ts.state !== "valid") {
+      recordPost(jobId, draftId, { status: "failed", note: ts.message });
+      log(ts.message, "error");
+      setJobStage(jobId, "failed", "티스토리 로그인 필요", ts.message);
+      return;
+    }
+    const upDir = path.join(paths.images, `job${jobId}`, "올릴사진");
+    const exported = exportPhotosForUpload(draft, images, upDir);
+    if (exported.length) log(`올릴 사진 ${exported.length}장을 '올릴사진' 폴더에 사진 1~${exported.length} 이름으로 정리했습니다`);
+    const tr = await Promise.race([
+      saveTistoryDraft({ jobId, blog: ts.blog, draft, images, dryRun: nowT.dryRun, headless: !nowT.showBrowser, log }),
+      new Promise<{ status: "failed"; note: string }>((res) =>
+        setTimeout(() => res({ status: "failed", note: "티스토리 작업이 15분 안에 끝나지 않아 중단했습니다." }), PUBLISH_CAP_MS),
+      ),
+    ]);
+    if (tr.status === "draft_saved" || tr.status === "draft_unverified") {
+      const bc = bodyChars(draft);
+      const imgs = draft.sections.filter((x) => x.type === "image").length;
+      tr.note += ` (본문 ${bc.toLocaleString()}자, 사진 자리 ${imgs}곳${catLabel ? `, 카테고리: ${catLabel} — 발행할 때 티스토리 카테고리를 '${catLabel}'로 골라 주세요` : ""}${tags.length ? `, 태그 ${tags.length}개 — [태그만 복사]로 티스토리 태그 칸에 붙여넣으세요` : ""})`;
+    }
+    recordPost(jobId, draftId, tr);
+    if (tr.status === "failed") {
+      log(tr.note, "error");
+      setJobStage(jobId, "failed", "티스토리 저장 실패", tr.note);
+    } else {
+      log(tr.note, tr.status === "draft_unverified" ? "warn" : "ok");
+      setJobStage(jobId, "done", tr.status === "dry_run" ? "연습 완료" : "임시저장됨");
+    }
+    return;
+  }
+
+  // 발행
+  setJobStage(jobId, "publishing", settings.dryRun ? "연습: 글쓰기 화면에 입력 중" : "네이버에 올리는 중");
+  const now = getSettings(); // 작업 도중 바뀐 설정(연습 모드·중단)을 반영
+  if (!now.dryRun) {
+    const g = checkPublishGuard(now);
+    if (g.blocked) {
+      recordPost(jobId, draftId, { status: "blocked", note: g.reason });
+      log(g.reason, "warn");
+      setJobStage(jobId, "done", "발행 막힘");
+      return;
+    }
+  }
+  const sess = await verifySession();
+  if (sess.state !== "valid") {
+    const note =
+      sess.state === "none"
+        ? "네이버 로그인이 필요합니다. 화면 위 [네이버 로그인]을 눌러주세요."
+        : sess.state === "write_expired"
+          ? "글쓰기 로그인이 풀렸습니다. [네이버 로그인]을 다시 눌러주시고 '로그인 상태 유지'를 꼭 체크해 주세요."
+          : `네이버 로그인 확인 실패: ${sess.message}`;
+    recordPost(jobId, draftId, { status: "failed", note });
+    log(note, "error");
+    setJobStage(jobId, "failed", "로그인 필요", note);
+    return;
+  }
+
+  const result = await Promise.race<PublishResult>([
+    publishDraft({
+      jobId,
+      draft,
+      images,
+      blogId: sess.blogId,
+      dryRun: now.dryRun,
+      visibility: now.visibility,
+      headless: !now.showBrowser,
+      headingAsQuote: input.mode !== "auto",
+      log,
+    }),
+    new Promise<PublishResult>((res) =>
+      setTimeout(() => res({ status: "failed", note: "글쓰기가 15분 안에 끝나지 않아 중단했습니다. 글은 임시저장 상태로 남아 있을 수 있습니다." }), PUBLISH_CAP_MS),
+    ),
+  ]);
+  if (catLabel && result.status !== "blocked") result.note += ` (카테고리: ${catLabel} — 네이버 블로그에서 이 카테고리로 옮겨 주세요)`;
+  recordPost(jobId, draftId, result);
+  if (result.status === "published") {
+    log(`발행 완료: ${result.url}`, "ok");
+    setJobStage(jobId, "done", "발행됨");
+  } else if (result.status === "dry_run") {
+    log("연습 완료 — 실제로 올리지 않았습니다. 완성 화면을 저장했습니다", "ok");
+    setJobStage(jobId, "done", "연습 완료");
+  } else {
+    log(result.note, "error");
+    setJobStage(jobId, "failed", "발행 실패", result.note);
+  }
+}
+
+/**
+ * [다시 시도] — 저장된 글·그림으로 발행 단계만 다시 한다(글을 새로 쓰지 않음).
+ */
+export async function retryPublish(jobId: number): Promise<void> {
+  const db = getDb();
+  const log: LogFn = (m, lvl = "info") => jobLog(jobId, m, lvl);
+  try {
+    const job = db.prepare("SELECT inputs FROM jobs WHERE id=?").get(jobId) as { inputs: string } | undefined;
+    const d = db.prepare("SELECT id, title, body_json, category, tags FROM drafts WHERE job_id=? ORDER BY id DESC LIMIT 1").get(jobId) as
+      | { id: number; title: string; body_json: string; category: string | null; tags: string | null }
+      | undefined;
+    if (!job || !d) throw new Error("다시 올릴 글이 없습니다. 처음부터 다시 만들어 주세요.");
+    const input = JSON.parse(job.inputs) as JobInput;
+    const draft: Draft = { title: d.title, sections: JSON.parse(d.body_json), category: d.category, tags: d.tags ? JSON.parse(d.tags) : [] };
+    const images = new Map<number, string>();
+    for (const r of db
+      .prepare("SELECT section_index, local_path FROM images WHERE job_id=? AND draft_id=? AND verdict_ok=1 AND local_path IS NOT NULL ORDER BY id")
+      .all(jobId, d.id) as Array<{ section_index: number; local_path: string }>) {
+      if (fs.existsSync(r.local_path) && !images.has(r.section_index)) images.set(r.section_index, r.local_path);
+    }
+    log(`다시 시도합니다 — 이미 쓴 글과 그림(${images.size}장)을 그대로 씁니다`);
+    await publishStage({ jobId, draftId: d.id, draft, images, input, catLabel: d.category, tags: draft.tags ?? [], log });
+  } catch (e) {
+    const msg = (e as Error).message || String(e);
+    log(msg, "error");
+    setJobStage(jobId, "failed", "실패", msg);
+  }
+}
