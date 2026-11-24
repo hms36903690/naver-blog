@@ -2,6 +2,7 @@ import fs from "node:fs";
 import { newContext } from "../playwright";
 import { ensureDirs, paths } from "../paths";
 import { NAVER } from "../scrape/selectors";
+import { refreshSessionFile } from "../sessionFile";
 
 export type SessionStatus =
   | { state: "none"; message: string }
@@ -109,7 +110,10 @@ export async function verifySession(force = false): Promise<SessionStatus> {
         await page.waitForTimeout(2000);
         if (/nid\.naver\.com/.test(page.url()))
           value = { state: "write_expired", blogId, message: "읽기는 되지만 글쓰기 로그인이 풀렸습니다." };
-        else value = { state: "valid", blogId, message: "로그인되어 있습니다." };
+        else {
+          value = { state: "valid", blogId, message: "로그인되어 있습니다." };
+          await refreshSessionFile(context, paths.session); // 연장된 쿠키 저장(로그인이 계속 풀리지 않도록)
+        }
       }
     }
   } catch (e) {

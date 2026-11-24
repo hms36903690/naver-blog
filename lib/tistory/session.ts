@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { newContextWith } from "../playwright";
+import { fmtUntil, refreshSessionFile, summarizeSessionFile } from "../sessionFile";
 import { ensureDirs, paths } from "../paths";
 import { TISTORY } from "../scrape/selectors";
 import { getSettings } from "../settings";
@@ -38,10 +39,19 @@ export async function tistoryLogin(): Promise<{ ok: boolean; message: string }> 
       const u = page.url();
       const back = /tistory\.com/.test(u) && !/\/auth\/login|kakao\.com/.test(u) && cookies.some((c) => /tistory\.com$/.test(c.domain));
       if (hasCookie || back) {
+        // 리다이렉트 중간에 저장하면 로그인 쿠키가 덜 들어간다 → 티스토리 첫 화면에 한 번 들러 쿠키를 안정화한 뒤 저장
         await page.waitForTimeout(2000);
-        await context.storageState({ path: tistorySessionPath() });
+        await page.goto(TISTORY.home, { waitUntil: "domcontentloaded" }).catch(() => {});
+        await page.waitForTimeout(2500);
+        await refreshSessionFile(context, tistorySessionPath());
         invalidateTistoryCache();
-        return { ok: true, message: "티스토리에 로그인했습니다." };
+        const sum = summarizeSessionFile(tistorySessionPath(), /tistory\.com$/, [...TISTORY.sessionCookies]);
+        return {
+          ok: true,
+          message: sum.sessionOnly
+            ? "티스토리에 로그인했습니다. 다만 '로그인 상태 유지'가 꺼져 있어 곧 풀릴 수 있습니다. 카카오 로그인 화면에서 체크하고 다시 로그인하시길 권합니다."
+            : `티스토리에 로그인했습니다.${sum.until ? ` (로그인 정보 유지: ${fmtUntil(sum.until)}까지, 앱을 쓸 때마다 연장됩니다)` : ""}`,
+        };
       }
       await page.waitForTimeout(1000);
     }
@@ -76,7 +86,10 @@ export async function verifyTistory(force = false): Promise<TistoryStatus> {
     const u = page.url();
     if (/\/auth\/login|kakao\.com/.test(u)) v = { state: "expired", blog, message: "티스토리 로그인이 풀렸습니다." };
     else if (!u.includes(`${blog}.tistory.com`)) v = { state: "error", blog, message: "그 주소의 블로그 글쓰기 화면이 열리지 않습니다. 티스토리 주소를 확인해 주세요." };
-    else v = { state: "valid", blog, message: "로그인되어 있습니다." };
+    else {
+      v = { state: "valid", blog, message: "로그인되어 있습니다." };
+      await refreshSessionFile(context, tistorySessionPath()); // 사이트가 연장해 준 쿠키를 저장(계속 풀리던 원인)
+    }
   } catch (e) {
     v = { state: "error", blog, message: `확인 실패: ${(e as Error).message.split("\n")[0].slice(0, 140)}` };
   } finally {

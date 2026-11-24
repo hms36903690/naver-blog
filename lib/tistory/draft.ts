@@ -13,6 +13,7 @@ import { newContextWith } from "../playwright";
 import { TISTORY } from "../scrape/selectors";
 import type { Draft } from "../types";
 import { draftToTistoryHtml } from "./html";
+import { fmtUntil, refreshSessionFile, summarizeSessionFile } from "../sessionFile";
 import { tistorySessionPath } from "./session";
 
 export type TistoryResult = {
@@ -102,6 +103,7 @@ export async function saveTistoryDraft(o: {
     await sleep(3000);
     if (/\/auth\/login|kakao\.com/.test(page.url()))
       return { status: "failed", note: "티스토리 로그인이 풀렸습니다. [티스토리 로그인]을 다시 눌러주세요." };
+    if (!o.harness) await refreshSessionFile(context, tistorySessionPath()); // 로그인 유지 확인 직후 연장된 쿠키 저장
 
     // 제목
     const title = await firstVisible(page, TISTORY.title);
@@ -195,6 +197,7 @@ export async function diagnoseTistory(blog: string): Promise<{ summary: string[]
     };
     const detail = {
       url: page.url(),
+      cookieNames: summarizeSessionFile(tistorySessionPath(), /tistory\.com$|kakao\.com$/, []).names,
       dialogs,
       title: await count(page, TISTORY.title),
       editorFrame: await count(page, TISTORY.editorFrame),
@@ -217,8 +220,16 @@ export async function diagnoseTistory(blog: string): Promise<{ summary: string[]
     const screenshot = await shot(page, 0, "diagnose");
     const ok = (o: Record<string, string>) => Object.values(o).some((v) => /보임 [1-9]/.test(v));
     const p = detail.page as { tinymce?: boolean };
+    const loggedIn = !/\/auth\/login|kakao\.com/.test(detail.url);
+    if (loggedIn) await refreshSessionFile(context, tistorySessionPath());
+    const sum = summarizeSessionFile(tistorySessionPath(), /tistory\.com$/, [...TISTORY.sessionCookies]);
     const summary = [
-      /\/auth\/login|kakao\.com/.test(detail.url) ? "로그인: 풀려 있음 ✖" : "로그인: 됨 ✔",
+      loggedIn ? "로그인: 됨 ✔" : "로그인: 풀려 있음 ✖",
+      sum.sessionOnly
+        ? "로그인 정보 유지: 브라우저를 닫으면 끝나는 방식 ✖ — 카카오 '로그인 상태 유지'를 체크하고 다시 로그인하세요"
+        : sum.until
+          ? `로그인 정보 유지: ${fmtUntil(sum.until)}까지 ✔ (앱을 쓸 때마다 연장)`
+          : "로그인 정보 유지: 확인 못 함",
       `제목 칸: ${ok(detail.title) ? "찾음 ✔" : "못 찾음 ✖"}`,
       `본문 편집기: ${p.tinymce ? "찾음 ✔" : ok(detail.editorFrame) ? "찾음(보조) ✔" : "못 찾음 ✖"}`,
       `임시저장 버튼: ${ok(detail.draftSave) ? "찾음 ✔" : "못 찾음 ✖"}`,

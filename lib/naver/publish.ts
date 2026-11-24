@@ -10,6 +10,7 @@ import type { BrowserContext, Frame, Locator, Page } from "playwright";
 import { countPublishedToday, lastPublishedAt } from "../db";
 import { ensureDirs, paths } from "../paths";
 import { newContext } from "../playwright";
+import { refreshSessionFile } from "../sessionFile";
 import { EDITOR, NAVER } from "../scrape/selectors";
 import type { Settings, Visibility } from "../settings";
 import { HAS_VS16, neutralizeMarkdown, VS16_CLUSTER } from "../text";
@@ -530,6 +531,7 @@ export async function publishDraft(o: PublishOptions): Promise<PublishResult> {
     await sleep(2500);
     if (/nid\.naver\.com/.test(page.url()))
       return { status: "failed", note: "세션 만료 — 네이버 로그인이 풀렸습니다. 다시 로그인해 주세요(로그인 상태 유지 체크)." };
+    if (!o.harness) await refreshSessionFile(context, paths.session); // 로그인 유지 확인 직후 연장된 쿠키 저장
     const frameEl = await page.waitForSelector(EDITOR.frame, { timeout: 30000 }).catch(() => null);
     const frame = frameEl ? await frameEl.contentFrame() : null;
     if (!frame) {

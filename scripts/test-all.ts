@@ -188,6 +188,26 @@ async function main() {
   ok("조치: 글이 없으면 [처음부터 다시 만들기]", dg("본문 쓰기 실패: …", "naver", false).actions.includes("remake") && !dg("알 수 없는 오류", "naver", false).actions.includes("retry"));
   ok("조치: 하루 한도 → 설정+다시 시도", JSON.stringify(dg("오늘 발행 한도(3편)에 도달했습니다.").actions) === JSON.stringify(["settings", "retry"]));
 
+  // ── 로그인 정보 갱신 저장 + 유지 기간 읽기 ──
+  const { refreshSessionFile, summarizeSessionFile } = await import("@/lib/sessionFile");
+  {
+    const { chromium } = await import("playwright");
+    const exe2 = process.env.PW_CHROMIUM_PATH;
+    const br = await chromium.launch(exe2 ? { executablePath: exe2 } : {});
+    const ctx = await br.newContext();
+    const sf = path.join(tmp, "ts-session.json");
+    const in30 = Math.floor(Date.now() / 1000) + 30 * 86400;
+    await ctx.addCookies([{ name: "TSSESSION", value: "x", domain: ".tistory.com", path: "/", expires: in30 }]);
+    await refreshSessionFile(ctx, sf);
+    const sum = summarizeSessionFile(sf, /tistory\.com$/, ["TSSESSION"]);
+    ok("로그인 정보 갱신 저장 + 유지 기간(30일 뒤) 읽기", sum.exists && !sum.sessionOnly && Math.abs(new Date(sum.until!).getTime() / 1000 - in30) < 2, JSON.stringify(sum));
+    const ctx2 = await br.newContext();
+    await ctx2.addCookies([{ name: "TSSESSION", value: "x", domain: ".tistory.com", path: "/" }]);
+    await refreshSessionFile(ctx2, sf);
+    ok("'로그인 상태 유지' 꺼짐(세션 쿠키만) 감지", summarizeSessionFile(sf, /tistory\.com$/, ["TSSESSION"]).sessionOnly);
+    await br.close();
+  }
+
   // ── 7-8 마크다운 무력화 ──
   const md = "정말 좋았어요~~ **진짜** `코드`\n# 제목\n> 인용\n- 목록\n물결~ 하나";
   const neu = neutralizeMarkdown(md);
