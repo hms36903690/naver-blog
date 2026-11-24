@@ -10,7 +10,8 @@
     "test": "tsx scripts/test-all.ts",
     "test:harness": "tsx scripts/test-harness.ts",
     "test:ai": "tsx scripts/test-ai.ts && tsx scripts/test-vision.ts",
-    "test:tistory": "tsx scripts/test-tistory.ts"
+    "test:tistory": "tsx scripts/test-tistory.ts",
+    "test:relogin": "tsx scripts/test-relogin.ts"
   },
   "dependencies": {
     "next": "^15.5.29",

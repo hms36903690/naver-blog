@@ -103,6 +103,12 @@ export const TISTORY = {
   manage: (blog: string) => `https://${blog}.tistory.com/manage`,
   /** 로그인 판정 쿠키 후보(실측 전) */
   sessionCookies: ["TSSESSION"],
+  /**
+   * 티스토리 로그인 화면의 "카카오계정으로 로그인" 버튼(실측 전 후보).
+   * 티스토리 자체 로그인이 끝나도 카카오 쪽 로그인이 살아 있으면 이 버튼 한 번으로 비밀번호 없이 다시 들어간다(평소 브라우저가 하는 일).
+   * ⚠️ 텍스트 부분일치는 이 화면에 비슷한 버튼이 없어 허용(7-1 의 '취소선' 같은 함정 없음) — 실측되면 클래스 값을 앞에 추가.
+   */
+  kakaoLoginButton: ["a.btn_login.link_kakao_id", "a.link_kakao_id", "a:has-text('카카오계정으로 로그인')", "button:has-text('카카오계정으로 로그인')"],
   title: ["textarea#post-title-inp", "#post-title-inp", "textarea[placeholder*='제목']", "input[placeholder*='제목']"],
   /** TinyMCE 편집 영역 iframe 후보(본문은 가능하면 tinymce API 로 넣는다) */
   editorFrame: ["iframe#editor-tistory_ifr", "iframe[id$='_ifr']", ".mce-edit-area iframe", ".tox-edit-area iframe"],

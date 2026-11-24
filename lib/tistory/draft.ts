@@ -14,7 +14,7 @@ import { TISTORY } from "../scrape/selectors";
 import type { Draft } from "../types";
 import { draftToTistoryHtml } from "./html";
 import { fmtUntil, refreshSessionFile, summarizeSessionFile } from "../sessionFile";
-import { tistorySessionPath } from "./session";
+import { isTistoryLoginUrl, openTistoryWithRelogin, reloginFailMessage, tistorySessionPath } from "./session";
 
 export type TistoryResult = {
   status: "draft_saved" | "draft_unverified" | "dry_run" | "failed";
@@ -99,10 +99,15 @@ export async function saveTistoryDraft(o: {
       o.log(`티스토리 안내창을 닫았습니다: ${d.message().slice(0, 60)}`);
       await d.dismiss().catch(() => {});
     });
-    await page.goto(o.harness?.entryUrl ?? TISTORY.newPost(o.blog), { waitUntil: "domcontentloaded", timeout: 45000 });
-    await sleep(3000);
-    if (/\/auth\/login|kakao\.com/.test(page.url()))
-      return { status: "failed", note: "티스토리 로그인이 풀렸습니다. [티스토리 로그인]을 다시 눌러주세요." };
+    if (o.harness) {
+      await page.goto(o.harness.entryUrl, { waitUntil: "domcontentloaded", timeout: 45000 });
+      await sleep(3000);
+    } else {
+      const open = await openTistoryWithRelogin(page, TISTORY.newPost(o.blog));
+      if (!open.ok) return { status: "failed", note: reloginFailMessage(open) };
+      if (open.relogged) o.log("티스토리 로그인이 풀려 있어 카카오 로그인으로 자동으로 다시 들어갔습니다");
+      await sleep(1500);
+    }
     if (!o.harness) await refreshSessionFile(context, tistorySessionPath()); // 로그인 유지 확인 직후 연장된 쿠키 저장
 
     // 제목
@@ -184,8 +189,8 @@ export async function diagnoseTistory(blog: string): Promise<{ summary: string[]
       dialogs.push(d.message().slice(0, 120));
       await d.dismiss().catch(() => {});
     });
-    await page.goto(TISTORY.newPost(blog), { waitUntil: "domcontentloaded", timeout: 45000 });
-    await sleep(4000);
+    const open = await openTistoryWithRelogin(page, TISTORY.newPost(blog));
+    await sleep(2000);
     const count = async (scope: Page | Frame, sels: readonly string[]) => {
       const r: Record<string, string> = {};
       for (const s of sels) {
@@ -197,6 +202,8 @@ export async function diagnoseTistory(blog: string): Promise<{ summary: string[]
     };
     const detail = {
       url: page.url(),
+      relogin: open.ok ? (open.relogged ? "카카오로 자동 재로그인함" : "필요 없었음") : `실패: ${open.reason}`,
+      loginPageButtons: open.ok ? [] : open.loginButtons,
       cookieNames: summarizeSessionFile(tistorySessionPath(), /tistory\.com$|kakao\.com$/, []).names,
       dialogs,
       title: await count(page, TISTORY.title),
@@ -220,11 +227,19 @@ export async function diagnoseTistory(blog: string): Promise<{ summary: string[]
     const screenshot = await shot(page, 0, "diagnose");
     const ok = (o: Record<string, string>) => Object.values(o).some((v) => /보임 [1-9]/.test(v));
     const p = detail.page as { tinymce?: boolean };
-    const loggedIn = !/\/auth\/login|kakao\.com/.test(detail.url);
+    const loggedIn = !isTistoryLoginUrl(detail.url);
     if (loggedIn) await refreshSessionFile(context, tistorySessionPath());
     const sum = summarizeSessionFile(tistorySessionPath(), /tistory\.com$/, [...TISTORY.sessionCookies]);
     const summary = [
-      loggedIn ? "로그인: 됨 ✔" : "로그인: 풀려 있음 ✖",
+      loggedIn ? `로그인: 됨 ✔${open.ok && open.relogged ? " (풀려 있던 것을 카카오 로그인으로 자동으로 다시 들어감)" : ""}` : open.ok ? "로그인: 풀려 있음 ✖" : `로그인: 풀려 있음 ✖ — ${open.reason === "need_password" ? "카카오도 비밀번호를 물음('로그인 상태 유지' 꺼짐)" : "자동 재로그인 실패"}`,
+      (() => {
+        const k = summarizeSessionFile(tistorySessionPath(), /kakao\.com$/, []);
+        return !k.names.length
+          ? "카카오 로그인 정보: 없음 ✖ — 티스토리가 풀리면 자동으로 다시 들어갈 수 없습니다"
+          : k.sessionOnly
+            ? "카카오 로그인 정보: 브라우저를 닫으면 끝나는 방식 ✖ — 카카오 '로그인 상태 유지'를 체크하고 다시 로그인하세요"
+            : `카카오 로그인 정보: ${fmtUntil(k.until)}까지 ✔ (티스토리가 풀려도 자동으로 다시 들어갑니다)`;
+      })(),
       sum.sessionOnly
         ? "로그인 정보 유지: 브라우저를 닫으면 끝나는 방식 ✖ — 카카오 '로그인 상태 유지'를 체크하고 다시 로그인하세요"
         : sum.until
