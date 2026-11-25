@@ -9,6 +9,7 @@ import path from "node:path";
 import type { BrowserContext, Frame, Locator, Page } from "playwright";
 import { countPublishedToday, lastPublishedAt } from "../db";
 import { ensureDirs, paths } from "../paths";
+import { detectImage, extFor, MIME as IMG_MIME } from "../imageType";
 import { newContext } from "../playwright";
 import { refreshSessionFile } from "../sessionFile";
 import { EDITOR, NAVER } from "../scrape/selectors";
@@ -243,7 +244,6 @@ class EditorSession {
  *   OS 네이티브 파일 대화상자가 떠서 브라우저가 영구히 멈춘다(실측 7분 정지, CPU 0%, 에러 없음). 맥·윈도우 공통.
  *   → 페이지를 열기 "전에" 영구 핸들러를 등록하고, 모듈 스코프 변수로 "지금 올릴 파일"을 넘긴다.
  */
-const MIME: Record<string, string> = { ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp", ".gif": "image/gif", ".heic": "image/heic" };
 const pendingUpload = { path: null as string | null, done: false, error: null as string | null };
 
 async function insertImage(ed: EditorSession, filePath: string, caption: string | null | undefined): Promise<{ ok: boolean; captioned: boolean }> {
@@ -515,8 +515,10 @@ export async function publishDraft(o: PublishOptions): Promise<PublishResult> {
         //   (틀린 추측: "업로드가 느린가" — 20초를 기다려도 change 0회. ASCII 경로로 바꾸면 즉시 1회.)
         //   윈도우 사용자 폴더(C:\Users\홍길동)·한글 사진 폴더에서 거의 확실히 밟는다.
         if (pendingUpload.path) {
-          const ext = path.extname(pendingUpload.path).toLowerCase() || ".jpg";
-          await c.setFiles({ name: `photo-${Date.now()}${ext}`, mimeType: MIME[ext] ?? "image/jpeg", buffer: fs.readFileSync(pendingUpload.path) });
+          // 이름·MIME 을 실제 내용 형식에 맞춘다(확장자만 다른 파일을 막는 블로그 정책 대비)
+          const buf = fs.readFileSync(pendingUpload.path);
+          const ext = extFor(detectImage(buf));
+          await c.setFiles({ name: `photo-${Date.now()}${ext}`, mimeType: IMG_MIME[ext] ?? "image/jpeg", buffer: buf });
         }
         else pendingUpload.error = "올릴 파일이 지정되지 않았습니다";
       } catch (e) {

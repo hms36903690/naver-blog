@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { detectImage, extFor, needsConversion } from "../imageType";
 import { neutralizeMarkdown } from "../text";
 import type { Draft } from "../types";
 
@@ -16,15 +17,18 @@ const esc = (t: string) =>
  * 이유: 생성·검색 과정의 파일(ai-0-0.png, 탈락한 후보 등)이 섞여 있으면 사람이 어느 게 몇 번인지 알 수 없다.
  * 번호 매기는 순서는 draftToTistoryHtml 과 같다(섹션 순서, 사진을 구한 자리만).
  */
-export function exportPhotosForUpload(d: Draft, images: Map<number, string>, outDir: string): string[] {
+export function exportPhotosForUpload(d: Draft, images: Map<number, string>, outDir: string, warn?: (m: string) => void): string[] {
   fs.rmSync(outDir, { recursive: true, force: true });
   fs.mkdirSync(outDir, { recursive: true });
   const out: string[] = [];
   d.sections.forEach((s, i) => {
     const src = images.get(i);
     if (s.type !== "image" || !src || !fs.existsSync(src)) return;
-    const dest = path.join(outDir, `사진 ${out.length + 1}${path.extname(src).toLowerCase() || ".png"}`);
-    fs.copyFileSync(src, dest);
+    const buf = fs.readFileSync(src);
+    const kind = detectImage(buf);
+    const dest = path.join(outDir, `사진 ${out.length + 1}${extFor(kind)}`);
+    fs.writeFileSync(dest, buf);
+    if (needsConversion(kind)) warn?.(`「사진 ${out.length + 1}」은 ${kind.toUpperCase()} 형식이라 티스토리 웹에 안 올라갈 수 있습니다. JPG 로 바꿔 올려 주세요(아이폰은 설정 → 카메라 → 포맷 → '높은 호환성'으로 찍으면 처음부터 JPG 로 저장됩니다).`);
     out.push(dest);
   });
   return out;

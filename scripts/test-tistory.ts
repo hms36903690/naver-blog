@@ -80,18 +80,21 @@ const setup = async (ctx: BrowserContext) => {
   const { exportPhotosForUpload } = await import("@/lib/tistory/html");
   const pdir = path.join(tmp, "imgsrc");
   fs.mkdirSync(pdir, { recursive: true });
+  // 실제 내용: pa = JPEG(이름은 .png — 예전 앱이 만들던 불일치), pb = HEIC
   const pa = path.join(pdir, "ai-0-1.png");
   const pb = path.join(pdir, "ai-3-0.png");
-  fs.writeFileSync(pa, "A");
-  fs.writeFileSync(pb, "B");
+  fs.writeFileSync(pa, Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0x10, 0x4a, 0x46, 0x49, 0x46, 0, 1, 1, 0]));
+  fs.writeFileSync(pb, Buffer.concat([Buffer.from([0, 0, 0, 0x18]), Buffer.from("ftypheic"), Buffer.alloc(8)]));
   const d2 = { title: "t", sections: [
     { type: "image" as const, query: "첫" }, { type: "paragraph" as const, text: "가" },
     { type: "image" as const, query: "못 구함" }, { type: "image" as const, query: "셋째" }, { type: "paragraph" as const, text: "나" },
   ] };
   const up = path.join(tmp, "올릴사진");
-  const exp = exportPhotosForUpload(d2, new Map([[0, pa], [3, pb]]), up);
+  const warns: string[] = [];
+  const exp = exportPhotosForUpload(d2, new Map([[0, pa], [3, pb]]), up, (m) => warns.push(m));
   const html2 = draftToTistoryHtml(d2, new Map([[0, pa], [3, pb]])).html;
-  ok("올릴사진: 사진 1·사진 2 로 정리(빈 자리 건너뜀)", exp.map((f) => path.basename(f)).join(",") === "사진 1.png,사진 2.png" && fs.readFileSync(exp[1], "utf8") === "B");
+  ok("올릴사진: 실제 형식대로 이름(.png 로 저장됐던 JPEG → 사진 1.jpg), 빈 자리 건너뜀", exp.map((f) => path.basename(f)).join(",") === "사진 1.jpg,사진 2.heic", exp.map((f) => path.basename(f)).join(","));
+  ok("HEIC 는 티스토리 웹에 안 올라갈 수 있다고 경고", warns.length === 1 && /사진 2.*HEIC/.test(warns[0]), warns[0]);
   ok("안내문 번호와 파일 이름이 일치", html2.includes("「사진 1」") && html2.includes("「사진 2」") && !html2.includes("「사진 3」"));
 
   // ── 하네스: 연습 모드(저장 안 함) ──

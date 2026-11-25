@@ -3,6 +3,7 @@ import path from "node:path";
 import { config, hasCloudflare } from "@/config";
 import { runClaudeJson } from "../claude";
 import { getDb } from "../db";
+import { detectImage, extFor } from "../imageType";
 import { paths } from "../paths";
 import { PromptDesign, type ImageStyle } from "../types";
 import { neuronsPerImage } from "./neurons";
@@ -82,9 +83,11 @@ export async function generateImage(
     // 사용량 기록(실측 조회가 안 될 때 추정치의 근거)
     getDb().prepare("INSERT INTO cf_usage (job_id, steps, neurons, ok) VALUES (?,?,?,?)").run(jobId ?? null, st, neuronsPerImage(st), buf.length >= 2000 ? 1 : 0);
     if (buf.length < 2000) return { ok: false, error: "생성 실패(이미지가 너무 작음)" };
-    fs.mkdirSync(path.dirname(outPath), { recursive: true });
-    fs.writeFileSync(outPath, buf);
-    return { ok: true, path: outPath };
+    // 실제 형식에 맞는 확장자로 저장(Cloudflare 는 보통 JPEG 를 준다 — .png 로 저장하면 이름·형식 불일치)
+    const real = outPath.replace(/\.[a-z0-9]+$/i, "") + extFor(detectImage(buf));
+    fs.mkdirSync(path.dirname(real), { recursive: true });
+    fs.writeFileSync(real, buf);
+    return { ok: true, path: real };
   } catch (e) {
     return { ok: false, error: (e as Error).name === "AbortError" ? "생성 시간 초과(90초)" : (e as Error).message };
   } finally {

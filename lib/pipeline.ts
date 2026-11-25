@@ -349,7 +349,7 @@ async function publishStage(c: {
       return;
     }
     const upDir = path.join(paths.images, `job${jobId}`, "올릴사진");
-    const exported = exportPhotosForUpload(draft, images, upDir);
+    const exported = exportPhotosForUpload(draft, images, upDir, (m) => log(m, "warn"));
     if (exported.length) log(`올릴 사진 ${exported.length}장을 '올릴사진' 폴더에 사진 1~${exported.length} 이름으로 정리했습니다`);
     const tr = await Promise.race([
       saveTistoryDraft({ jobId, blog: ts.blog, draft, images, dryRun: nowT.dryRun, headless: !nowT.showBrowser, log }),

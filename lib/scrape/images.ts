@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { BrowserContext, Page } from "playwright";
 import { crawlRejectReason, judgeCrawled } from "../ai/vision";
+import { detectImage, extFor } from "../imageType";
 import { NAVER } from "./selectors";
 
 export type CandidateResult = {
@@ -102,7 +103,10 @@ export async function findImageForSlot(args: {
             continue;
           }
           const ct = res.headers()["content-type"] || "";
-          const ext = ct.includes("png") ? ".png" : ct.includes("webp") ? ".webp" : ".jpg";
+          void ct;
+          const kind = detectImage(buf);
+          if (kind === "unknown") continue; // 이미지가 아니거나 알 수 없는 형식
+          const ext = extFor(kind);
           fs.mkdirSync(args.outDir, { recursive: true });
           local = path.join(args.outDir, `crawl-${args.slotIndex}-${site}-${i}${ext}`);
           fs.writeFileSync(local, buf);
