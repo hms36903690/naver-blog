@@ -33,6 +33,8 @@ export type Settings = {
   naverAuthorBio: string;
   /** 보험설계사용 광고 안전장치(켜짐이 기본) — AI 규칙 + 문제 표현 검사 + 심의필 문구 없으면 네이버 실발행 막기 */
   complianceMode: boolean;
+  /** 네이버 실제 모드에서: "draft" = 임시저장까지만(기본, 발행·예약은 사람이) / "publish" = 바로 발행 */
+  naverMode: "draft" | "publish";
   /** 소속 회사 심의에서 받은 심의필 번호·필수 안내 문구(여러 줄 가능) — 글 끝에 붙는다 */
   complianceNotice: string;
 };
@@ -90,6 +92,7 @@ export function getSettings(): Settings {
     else if (key === "naverCtaUrl") s.naverCtaUrl = value;
     else if (key === "naverAuthorBio") s.naverAuthorBio = value;
     else if (key === "complianceNotice") s.complianceNotice = value;
+    else if (key === "naverMode" && (value === "draft" || value === "publish")) s.naverMode = value;
   }
   return s;
 }
@@ -109,6 +112,9 @@ export function updateSettings(patch: Record<string, unknown>): Settings {
         up.run(k, String(clamp(k as NumKey, n)));
       } else if (k === "naverCtaText") {
         up.run(k, String(v ?? "").trim().slice(0, 300));
+      } else if (k === "naverMode") {
+        if (v !== "draft" && v !== "publish") throw new UnknownSettingError("네이버 방식은 draft 또는 publish 입니다");
+        up.run(k, String(v));
       } else if (k === "complianceNotice") {
         up.run(k, String(v ?? "").trim().slice(0, 500));
       } else if (k === "naverAuthorBio") {

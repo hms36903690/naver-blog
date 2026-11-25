@@ -167,12 +167,17 @@ export async function fillImages(
 }
 
 function recordPost(jobId: number, draftId: number, r: { status: string; url?: string; screenshot?: string; note: string }) {
+  const j = getDb().prepare("SELECT inputs FROM jobs WHERE id=?").get(jobId) as { inputs: string } | undefined;
+  let target = "naver";
+  try {
+    target = JSON.parse(j?.inputs || "{}").target === "tistory" ? "tistory" : "naver";
+  } catch {}
   getDb()
     .prepare(
-      `INSERT INTO posts (job_id, draft_id, status, blog_url, screenshot, note, published_at)
-       VALUES (?,?,?,?,?,?, CASE WHEN ?='published' THEN datetime('now') ELSE NULL END)`,
+      `INSERT INTO posts (job_id, draft_id, status, blog_url, screenshot, note, published_at, target)
+       VALUES (?,?,?,?,?,?, CASE WHEN ?='published' THEN datetime('now') ELSE NULL END, ?)`,
     )
-    .run(jobId, draftId, r.status, r.url ?? null, r.screenshot ?? null, r.note, r.status);
+    .run(jobId, draftId, r.status, r.url ?? null, r.screenshot ?? null, r.note, r.status, target);
 }
 
 /** fire-and-forget. API 라우트에서 await 하지 말고 .catch(console.error) 만 붙인다. */
@@ -374,9 +379,10 @@ async function publishStage(c: {
   }
 
   // 발행
-  setJobStage(jobId, "publishing", settings.dryRun ? "연습: 글쓰기 화면에 입력 중" : "네이버에 올리는 중");
+  setJobStage(jobId, "publishing", settings.dryRun ? "연습: 글쓰기 화면에 입력 중" : settings.naverMode === "draft" ? "네이버에 임시저장 중" : "네이버에 올리는 중");
   const now = getSettings(); // 작업 도중 바뀐 설정(연습 모드·중단)을 반영
-  if (!now.dryRun && now.complianceMode) {
+  const draftOnly = now.naverMode === "draft";
+  if (!now.dryRun && now.complianceMode && !draftOnly) {
     // ⚠️ 보험설계사: 심의 없이 실제 발행하면 안 된다 → 심의필 문구가 없거나 문제 표현이 있으면 막는다
     const reason = !now.complianceNotice.trim()
       ? "심의필 문구가 없어 네이버에 발행하지 않았습니다. 소속 회사 심의를 받은 뒤 [설정] → 보험 광고 규정에 심의필 번호·안내 문구를 넣고 다시 시도하세요."
@@ -390,7 +396,12 @@ async function publishStage(c: {
       return;
     }
   }
-  if (!now.dryRun) {
+  if (!now.dryRun && draftOnly && now.killSwitch) {
+    recordPost(jobId, draftId, { status: "blocked", note: "전체 중단이 켜져 있어 네이버에 저장하지 않았습니다." });
+    setJobStage(jobId, "done", "막힘");
+    return;
+  }
+  if (!now.dryRun && !draftOnly) {
     const g = checkPublishGuard(now);
     if (g.blocked) {
       recordPost(jobId, draftId, { status: "blocked", note: g.reason });
@@ -420,6 +431,7 @@ async function publishStage(c: {
       images,
       blogId: sess.blogId,
       dryRun: now.dryRun,
+      draftOnly,
       visibility: now.visibility,
       headless: !now.showBrowser,
       headingAsQuote: input.mode !== "auto",
@@ -429,11 +441,15 @@ async function publishStage(c: {
       setTimeout(() => res({ status: "failed", note: "글쓰기가 15분 안에 끝나지 않아 중단했습니다. 글은 임시저장 상태로 남아 있을 수 있습니다." }), PUBLISH_CAP_MS),
     ),
   ]);
-  if (catLabel && result.status !== "blocked") result.note += ` (카테고리: ${catLabel} — 네이버 블로그에서 이 카테고리로 옮겨 주세요)`;
+  if (catLabel && result.status !== "blocked") result.note += ` (카테고리: ${catLabel} — ${draftOnly ? "발행할 때 이 카테고리를 고르세요" : "네이버 블로그에서 이 카테고리로 옮겨 주세요"})`;
+  if (draftOnly && hits.length && result.status !== "failed") result.note += ` ⚠️ 심의 전에 고칠 표현: ${hits.map((h) => `"${h.word}"`).join(", ")}`;
   recordPost(jobId, draftId, result);
   if (result.status === "published") {
     log(`발행 완료: ${result.url}`, "ok");
     setJobStage(jobId, "done", "발행됨");
+  } else if (result.status === "draft_saved" || result.status === "draft_unverified") {
+    log(result.note, result.status === "draft_unverified" ? "warn" : "ok");
+    setJobStage(jobId, "done", "네이버 임시저장됨");
   } else if (result.status === "dry_run") {
     log("연습 완료 — 실제로 올리지 않았습니다. 완성 화면을 저장했습니다", "ok");
     setJobStage(jobId, "done", "연습 완료");

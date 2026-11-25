@@ -24,6 +24,7 @@ export type Settings = {
   naverAuthorBio: string;
   complianceMode: boolean;
   complianceNotice: string;
+  naverMode: "draft" | "publish";
 };
 export type Limits = Record<string, { min: number; max: number }>;
 
@@ -157,6 +158,20 @@ export default function SettingsDrawer(props: {
             <small>켜면 어떤 작업도 발행되지 않습니다</small>
           </div>
           <Switch label="전체 중단" checked={s.killSwitch} color="var(--armed)" onChange={(v) => save({ killSwitch: v })} />
+        </div>
+        <div className="set" style={{ display: "block" }}>
+          <div style={{ marginBottom: 6 }}>
+            네이버 실제 모드에서
+            <small>임시저장까지만 하면 읽고(심의 후) 네이버에서 예약 발행을 직접 정합니다. 보험설계사·심의가 필요하면 이쪽을 권합니다.</small>
+          </div>
+          <div className="seg">
+            <button type="button" aria-pressed={s.naverMode === "draft"} onClick={() => save({ naverMode: "draft" })}>
+              임시저장까지만 (추천)
+            </button>
+            <button type="button" aria-pressed={s.naverMode === "publish"} onClick={() => save({ naverMode: "publish" })}>
+              바로 발행
+            </button>
+          </div>
         </div>
         <div className="set" style={{ display: "block" }}>
           <div style={{ marginBottom: 6 }}>

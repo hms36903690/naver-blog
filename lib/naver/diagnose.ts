@@ -114,6 +114,7 @@ export async function diagnoseNaver(o: {
       ...EDITOR.title, ...EDITOR.body, ...EDITOR.imageButton, ...EDITOR.textFormatOpen, ...EDITOR.bold,
       ...EDITOR.bgColorOpen, ...EDITOR.dividerInsert, ...EDITOR.bottomToolbar, ...EDITOR.bottomSearchInput, ...EDITOR.content, ...EDITOR.popupDim,
     ]);
+    detail.step2_saveDraft = await measure(page, frame, EDITOR.saveDraft); // 임시저장 버튼(누르지 않는다)
 
     // 제목·본문에 커서를 둬야 드롭다운이 의미 있다(글자는 넣지 않는다)
     const body = await firstVisible([frame], EDITOR.body);
@@ -213,6 +214,7 @@ export async function diagnoseNaver(o: {
       `제목 칸: ${found(pick(EDITOR.title)) ? "찾음 ✔" : "못 찾음 ✖"} · 본문 칸: ${found(pick(EDITOR.body)) ? "찾음 ✔" : "못 찾음 ✖"}`,
       `소제목·인용구 메뉴: ${fmtOk ? "찾음 ✔" : "못 찾음 ✖"} · 형광펜: ${palOk ? "찾음 ✔" : "못 찾음 ✖"} · 굵게: ${found(pick(EDITOR.bold)) ? "✔" : "✖"} · 구분선: ${found(pick(EDITOR.dividerInsert)) ? "✔" : "✖"}`,
       `사진 넣기: ${imgB?.uploaded ? "올라감 ✔" : "못 올림 ✖"} · 사진 설명칸 펼침: ${/se-is-on/.test(capAfter) ? "✔" : "✖"}`,
+      `임시저장 버튼: ${found(detail.step2_saveDraft as Record<string, Count>) ? `찾음 ✔ (${where(detail.step2_saveDraft as Record<string, Count>)})` : "못 찾음 ✖"}`,
       `발행 버튼: ${pub ? `찾음 ✔ (${where(detail.step3_publishOpen as Record<string, Count>)})` : "못 찾음 ✖"}`,
       `공개 범위 '비공개' 고르기: ${privFound ? "찾음 ✔" : "못 찾음 ✖"}${defaultPublic ? " (네이버 기본값은 전체공개 — 앱이 매번 비공개로 바꿉니다)" : ""}`,
       `최종 발행 버튼: ${found((detail.step3_publishConfirm as Record<string, Count>) ?? {}) ? "찾음 ✔ (누르지 않았습니다)" : "못 찾음 ✖"}`,

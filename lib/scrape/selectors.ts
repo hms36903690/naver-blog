@@ -53,6 +53,11 @@ export const EDITOR = {
   publishOpen: ["button[data-click-area='tpb.publish']", "button.publish_btn__m9KHH"],
   // 최종 확인 버튼 — 값에 `*` 가 들어간 것이 맞다(오타 아님).
   publishConfirm: ["button[data-click-area='tpb*i.publish']", "button.confirm_btn__WEaBq"],
+  /**
+   * 임시저장("저장") 버튼 — ⚠️ 실측 전 후보값(발행 버튼의 data-click-area='tpb.publish' 패턴에서 유추).
+   * [네이버 화면 점검]으로 재서 실측값을 앞에 추가할 것. 텍스트는 정확일치(:text-is)만 — '저장'이 들어간 다른 버튼 방지(7-1).
+   */
+  saveDraft: ["button[data-click-area='tpb.save']", "button[class*='save_btn']", "button:text-is('저장')"],
 
   // ⚠️ 7-19: radio input 은 opacity:0 이라 클릭되지 않는다. label 을 누르고 input.checked 로 확인.
   //   네이버 발행 레이어의 기본값은 "전체공개"(open_public, value=2)다.

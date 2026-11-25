@@ -41,6 +41,7 @@ export const config = {
     naverAuthorBio: "",
     complianceMode: bool("COMPLIANCE_MODE", true),
     complianceNotice: "",
+    naverMode: (env("NAVER_MODE") === "publish" ? "publish" : "draft") as "draft" | "publish",
   },
 };
 

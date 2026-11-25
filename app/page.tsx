@@ -352,7 +352,7 @@ export default function Page() {
 
   const s = status?.settings;
   const sig = !s ? "safe" : s.killSwitch ? "armed" : s.dryRun ? "safe" : "armed";
-  const railTitle = !s ? "불러오는 중…" : s.killSwitch ? "전체 중단" : s.dryRun ? "연습 모드" : target === "tistory" ? "실제 모드 (티스토리 임시저장)" : "실제 발행";
+  const railTitle = !s ? "불러오는 중…" : s.killSwitch ? "전체 중단" : s.dryRun ? "연습 모드" : target === "tistory" ? "실제 모드 (티스토리 임시저장)" : s.naverMode === "draft" ? "실제 모드 (네이버 임시저장)" : "실제 발행";
   const railSub = !s
     ? ""
     : s.killSwitch
@@ -361,9 +361,11 @@ export default function Page() {
         ? "발행하지 않고 완성 화면만 저장합니다"
         : target === "tistory"
           ? "티스토리에 임시저장합니다 — 발행은 직접 하세요"
-          : "완성되는 글이 블로그에 그대로 올라갑니다";
+          : s.naverMode === "draft"
+            ? "네이버에 임시저장합니다 — 발행(예약)은 직접 하세요"
+            : "완성되는 글이 블로그에 그대로 올라갑니다";
   const isTs = target === "tistory";
-  const goLabel = s?.dryRun ? "연습으로 만들기" : isTs ? "글 만들고 티스토리에 임시저장" : "글 만들고 발행하기";
+  const goLabel = s?.dryRun ? "연습으로 만들기" : isTs ? "글 만들고 티스토리에 임시저장" : s?.naverMode === "draft" ? "글 만들고 네이버에 임시저장" : "글 만들고 발행하기";
   const tsOk = status?.tistory.state === "valid";
   const anyActive = jobs.some((j) => ACTIVE.includes(j.status));
   const naverOk = status?.naver.state === "valid";
@@ -374,7 +376,7 @@ export default function Page() {
   async function start() {
     if (!canRun) return;
     setFormErr("");
-    if (s && !s.dryRun && !isTs) {
+    if (s && !s.dryRun && !isTs && s.naverMode === "publish") {
       const ok = confirm(
         `연습 모드가 꺼져 있습니다. 완성된 글이 네이버 블로그에 "${VISIBILITY_LABEL[s.visibility]}"로 실제로 올라갑니다.\n되돌릴 수 없습니다. 계속할까요?`,
       );
@@ -422,7 +424,9 @@ export default function Page() {
     if (toReal) {
       const where = isTs
         ? "티스토리에는 임시저장까지만 합니다(발행은 직접)."
-        : `네이버 블로그에는 "${VISIBILITY_LABEL[status.settings.visibility]}"로 실제 발행됩니다. 되돌릴 수 없습니다.`;
+        : status.settings.naverMode === "draft"
+          ? "네이버에는 임시저장까지만 합니다(발행·예약은 직접)."
+          : `네이버 블로그에는 "${VISIBILITY_LABEL[status.settings.visibility]}"로 실제 발행됩니다. 되돌릴 수 없습니다.`;
       if (!confirm(`실제 모드로 바꿀까요?\n${where}`)) return;
     }
     setSwitching(true);
@@ -501,6 +505,7 @@ export default function Page() {
     if (a === "settings") return setDrawer(true);
     if (a === "naverBlog") return window.open(status?.naver.blogId ? `https://blog.naver.com/${status.naver.blogId}` : "https://blog.naver.com/MyBlog.naver", "_blank");
     if (a === "tistoryWrite" && s?.tistoryBlog) return window.open(`https://${s.tistoryBlog}.tistory.com/manage/newpost/`, "_blank");
+    if (a === "naverWrite") return window.open(status?.naver.blogId ? `https://blog.naver.com/${status.naver.blogId}?Redirect=Write` : "https://blog.naver.com/MyBlog.naver", "_blank");
   }
   const FIX_LABEL: Record<FixAction, string> = {
     retry: "다시 시도 (글·그림 그대로)",
@@ -510,6 +515,7 @@ export default function Page() {
     settings: "설정 열기",
     naverBlog: "내 네이버 블로그 열어 확인 ↗",
     tistoryWrite: "티스토리 임시저장 목록 열기 ↗",
+    naverWrite: "네이버 글쓰기(임시저장 목록) 열기 ↗",
   };
 
   async function openPhotoFolder(id: number) {
@@ -800,12 +806,14 @@ export default function Page() {
                       : "연습 모드 — 블로그에 올라가지 않습니다"
                     : isTs
                       ? `티스토리(${s.tistoryBlog || "주소 없음"}) — 임시저장까지만 합니다. 발행은 직접 하세요`
-                      : `실제 발행 — ${VISIBILITY_LABEL[s.visibility]}로 올라갑니다`}
+                      : s.naverMode === "draft"
+                        ? "네이버 — 임시저장까지만 합니다. 읽고(심의 후) 예약 발행은 직접 하세요"
+                        : `실제 발행 — ${VISIBILITY_LABEL[s.visibility]}로 올라갑니다`}
               </div>
             )}
             {formErr && <p className="err">{formErr}</p>}
             {anyActive && <p className="hint">진행 중인 작업이 끝나면 새로 만들 수 있습니다.</p>}
-            <button type="button" className="go" data-sig={isTs && s && !s.killSwitch ? "safe" : sig} disabled={!canRun} onClick={start}>
+            <button type="button" className="go" data-sig={(isTs || s?.naverMode === "draft") && s && !s.killSwitch ? "safe" : sig} disabled={!canRun} onClick={start}>
               {starting ? "시작하는 중…" : s?.killSwitch ? "전체 중단 중" : goLabel}
             </button>
             <p className="hint">

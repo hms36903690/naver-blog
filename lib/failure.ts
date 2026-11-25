@@ -9,7 +9,8 @@ export type FixAction =
   | "tistoryLogin"
   | "settings"
   | "naverBlog" // 내 네이버 블로그 열어 확인
-  | "tistoryWrite"; // 티스토리 글쓰기(임시저장 목록) 열어 확인
+  | "tistoryWrite" // 티스토리 글쓰기(임시저장 목록) 열어 확인
+  | "naverWrite"; // 네이버 글쓰기(임시저장 목록) 열어 확인
 
 export type FixGuide = { title: string; steps: string[]; actions: FixAction[] };
 
@@ -66,6 +67,18 @@ export function diagnoseFailure(text: string, opts: { target: "naver" | "tistory
         "안 올라갔다면 네이버 글쓰기의 '임시저장' 목록에 남아 있을 수 있습니다. 거기서 직접 발행하거나, [다시 시도]를 누르세요.",
       ],
       actions: ["naverBlog", retryOrRemake],
+    };
+  if (has(/네이버 '저장' 버튼은 눌렀지만/))
+    return {
+      title: "네이버에 저장됐는지 확인하지 못했습니다",
+      steps: ["[네이버 글쓰기]를 열고 위쪽 '저장' 옆 숫자를 눌러 이 글이 있는지 보세요.", "있으면 그대로 쓰시면 됩니다. 없을 때만 [다시 시도]를 누르세요."],
+      actions: ["naverWrite", retryOrRemake],
+    };
+  if (has(/네이버 임시저장 버튼을 찾지 못/))
+    return {
+      title: "네이버 임시저장 버튼을 찾지 못했습니다",
+      steps: ["[설정] → [네이버 화면 점검]을 눌러 결과를 Claude 에게 보내주세요.", "그동안은 [글 복사]로 복사해 네이버에 직접 붙여넣으세요."],
+      actions: ["settings"],
     };
   if (has(/임시저장 버튼은 눌렀지만|저장됐다는 신호/))
     return {

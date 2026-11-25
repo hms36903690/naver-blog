@@ -75,6 +75,7 @@ const MIGRATIONS: Array<{ table: string; column: string; ddl: string }> = [
   { table: "images", column: "gen_prompt", ddl: "ALTER TABLE images ADD COLUMN gen_prompt TEXT" },
   { table: "drafts", column: "category", ddl: "ALTER TABLE drafts ADD COLUMN category TEXT" },
   { table: "drafts", column: "tags", ddl: "ALTER TABLE drafts ADD COLUMN tags TEXT" },
+  { table: "posts", column: "target", ddl: "ALTER TABLE posts ADD COLUMN target TEXT" },
 ];
 
 function migrate(db: DB) {
@@ -141,6 +142,7 @@ export function countTistoryDraftsThisWeek(): number {
   const r = getDb()
     .prepare(
       `SELECT COUNT(*) n FROM posts WHERE status IN ('draft_saved','draft_unverified')
+       AND (target='tistory' OR target IS NULL)
        AND date(created_at,'localtime') >= date('now','localtime','weekday 0','-6 days')`,
     )
     .get() as { n: number };

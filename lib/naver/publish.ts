@@ -17,7 +17,7 @@ import type { Settings, Visibility } from "../settings";
 import { HAS_VS16, neutralizeMarkdown, VS16_CLUSTER } from "../text";
 import type { Draft } from "../types";
 
-export type PublishStatus = "published" | "dry_run" | "failed" | "blocked";
+export type PublishStatus = "published" | "dry_run" | "draft_saved" | "draft_unverified" | "failed" | "blocked";
 export type PublishResult = { status: PublishStatus; url?: string; screenshot?: string; screenshots?: string[]; note: string };
 
 export type PublishOptions = {
@@ -27,6 +27,8 @@ export type PublishOptions = {
   images: Map<number, string>;
   blogId?: string;
   dryRun: boolean;
+  /** 임시저장까지만(발행·예약은 사람이) — 발행 버튼·공개범위·확정 버튼은 건드리지 않는다 */
+  draftOnly?: boolean;
   visibility: Visibility;
   headless: boolean;
   /** 유형별 모드(체험단·브랜딩): heading 도 인용구로 처리 */
@@ -650,6 +652,31 @@ export async function publishDraft(o: PublishOptions): Promise<PublishResult> {
         screenshots: shot.files,
         note: `연습 모드 — 발행하지 않았습니다. 사진 ${imgOk}장${imgSkip ? `(빈 자리 ${imgSkip})` : ""}. (네이버가 작성 중인 글을 자동 임시저장했을 수 있습니다.)`,
       };
+    }
+
+    // 8-1. 임시저장까지만 — ⚠️ 발행 레이어·공개범위·확정 버튼은 열지도 누르지도 않는다
+    if (o.draftOnly) {
+      await ed.closeOverlays();
+      const saved = page
+        .waitForResponse((r) => r.request().method() === "POST" && /save|temp|draft|autosave/i.test(r.url()) && r.status() < 400, { timeout: 10000 })
+        .then(() => "request")
+        .catch(() => null);
+      const where = await clickAnywhere(page, frame, EDITOR.saveDraft);
+      if (!where) {
+        const s2 = await debugShot(page, o.jobId, "no-save-btn");
+        return {
+          status: "failed",
+          screenshot: s2 ?? shot.files[0],
+          note: "네이버 임시저장 버튼을 찾지 못했습니다. [설정] → [네이버 화면 점검] 결과를 보내주세요. (네이버가 작성 중인 글을 자동 저장했을 수 있습니다)",
+        };
+      }
+      const toast = Promise.race([frame, page].map((sc) => sc.locator("text=/저장(되었|됐|완료)/").first().waitFor({ timeout: 10000 }).then(() => "toast"))).catch(() => null);
+      const signal = (await Promise.race([saved, toast])) ?? (await saved) ?? (await toast);
+      await sleep(2000);
+      const how = `네이버 글쓰기 화면 위쪽 '저장' 옆 숫자(임시저장 목록)에서 불러와 읽어 보고, [발행] → 예약 시간을 정해 직접 발행하세요.`;
+      return signal
+        ? { status: "draft_saved", screenshot: shot.files[0], screenshots: shot.files, note: `네이버에 임시저장했습니다. 발행은 하지 않았습니다 — ${how} 사진 ${imgOk}장.` }
+        : { status: "draft_unverified", screenshot: shot.files[0], screenshots: shot.files, note: `네이버 '저장' 버튼은 눌렀지만 저장됐다는 신호를 확인하지 못했습니다. ${how}` };
     }
 
     // 9. 다시 한 번 닫기 ← 스크린샷 "뒤" (그 사이 다시 열렸을 수 있다)

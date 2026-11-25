@@ -24,6 +24,6 @@ export const POST_LABEL: Record<string, string> = {
   blocked: "발행 막힘",
   pending: "대기",
   publishing: "발행 중",
-  draft_saved: "티스토리 임시저장됨",
+  draft_saved: "임시저장됨",
   draft_unverified: "임시저장 확인 필요",
 };

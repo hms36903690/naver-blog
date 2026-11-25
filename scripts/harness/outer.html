@@ -15,6 +15,8 @@
   <b>harness</b>
   <span style="flex:1"></span>
   <button class="reserve">예약 발행 0건</button>
+  <button class="save_btn__bzc5B" data-click-area="tpb.save" id="saveBtn">저장</button>
+  <span id="savedToast" style="display:none">저장되었습니다</span>
   <button class="publish_btn__m9KHH" data-click-area="tpb.publish" id="pubOuter">발행</button>
 </header>
 <iframe id="mainFrame" name="mainFrame"></iframe>
@@ -29,7 +31,8 @@
 </div>
 <script>
   const q = new URLSearchParams(location.search);
-  window.__reserveClicks = 0;
+  window.__reserveClicks = 0; window.__saveClicks = 0; window.__publishOpened = 0;
+  document.getElementById('saveBtn').onclick = async () => { window.__saveClicks++; await fetch('/save', { method: 'POST' }).catch(() => {}); document.getElementById('savedToast').style.display = 'inline'; };
   document.querySelector('.reserve').onclick = () => window.__reserveClicks++;
   document.getElementById('mainFrame').src = 'editor.html' + location.search;
   const layer = document.getElementById('layer');
@@ -40,7 +43,7 @@
     // ⚠️ 7-3 재현: 차단막이 남아 있으면 클릭이 조용히 무시된다
     const f = document.getElementById('mainFrame').contentDocument;
     if (f.querySelector('.se-popup-dim')) return;
-    layer.classList.add('on');
+    layer.classList.add('on'); window.__publishOpened++;
   });
   layer.querySelector('[data-click-area="tpb*i.publish"]').onclick = () => {
     const c = document.querySelector('input[name=open]:checked');

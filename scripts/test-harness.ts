@@ -168,6 +168,37 @@ async function main() {
   });
   ok("발행 버튼이 iframe 안이어도 찾는다 + 이웃공개", r3.status === "published" && /vis=open_neighbor/.test(lastPostUrl), `${r3.status} ${lastPostUrl || r3.note}`);
 
+  // ── ③-2 네이버 임시저장까지만: 저장 버튼만 누르고 발행 레이어는 열지 않는다 ──
+  let saveReq = 0;
+  let state3: any = null;
+  lastPostUrl = "";
+  const r3b = await publishDraft({
+    ...base,
+    draft: { title: "임시저장 시험", sections: [{ type: "paragraph", text: "하나" }, { type: "paragraph", text: "둘" }, { type: "paragraph", text: "셋" }] },
+    images: new Map(),
+    dryRun: false,
+    draftOnly: true,
+    harness: {
+      entryUrl: "https://harness.test/outer.html",
+      setup: async (ctx) => {
+        await setup(ctx);
+        await ctx.route("https://harness.test/save", (route) => {
+          saveReq++;
+          return route.fulfill({ status: 200, body: "{}" });
+        });
+        ctx.on("page", (pg) => {
+          const orig = pg.close.bind(pg);
+          void orig;
+          pg.on("response", async () => {
+            state3 = await pg.evaluate(() => ({ save: (window as any).__saveClicks, pub: (window as any).__publishOpened })).catch(() => state3);
+          });
+        });
+      },
+    },
+  });
+  ok("임시저장 모드: draft_saved, 저장 요청 1회", r3b.status === "draft_saved" && saveReq === 1, `${r3b.status} / 저장 ${saveReq}`);
+  ok("★ 임시저장 모드: 발행 레이어 0회·게시글 주소 없음", (state3?.pub ?? 0) === 0 && !lastPostUrl && !r3b.url, JSON.stringify(state3));
+
   // ── ④ 공개 범위 라디오가 없으면 발행하지 않는다 ──
   const r4 = await publishDraft({
     ...base,
