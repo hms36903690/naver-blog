@@ -44,9 +44,9 @@ export type Target = "naver" | "tistory";
 /** 블로그 카테고리(사용자 지정) — 카테고리마다 글의 목적이 다르다 */
 export type Category = "life" | "money" | "health" | "tax" | "fund" | "wage" | "rent" | "inherit" | "finance";
 export const CATEGORY_LABEL: Record<Category, string> = {
-  life: "생활정보",
+  life: "생활경제",
   money: "금융·재테크",
-  health: "보험·건강",
+  health: "건강정보",
   tax: "세금",
   fund: "자금",
   wage: "임금·노무",

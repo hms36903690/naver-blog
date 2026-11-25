@@ -241,13 +241,13 @@ export default function Page() {
   }
   const [keyword, setKeyword] = useState("");
   // 카테고리(사용자 지정) — 올릴 곳마다 다르다
-  //   티스토리: 생활정보 / 금융·재테크 / 보험·건강
+  //   티스토리: 건강정보 / 금융·재테크 / 생활경제 (사용자 블로그의 실제 카테고리 이름)
   //   네이버: 사업자 정보(세금·자금·임금·임대료·증여·상속·재무)
   type Category = "life" | "money" | "health" | "tax" | "fund" | "wage" | "rent" | "inherit" | "finance";
   const TS_CATS: Array<{ id: Category; name: string; desc: string; kw: string }> = [
-    { id: "life", name: "생활정보", desc: "검색 유입을 위한 정보성 글", kw: "생활정보" },
+    { id: "health", name: "건강정보", desc: "전문성을 쌓고 독자를 확보하는 글", kw: "건강" },
     { id: "money", name: "금융·재테크", desc: "자산관리와 경제 관련 글", kw: "재테크" },
-    { id: "health", name: "보험·건강", desc: "전문성을 쌓고 독자를 확보하는 글", kw: "건강" },
+    { id: "life", name: "생활경제", desc: "검색 유입을 위한 생활·돈 정보", kw: "생활경제" },
   ];
   const NV_CATS: Array<{ id: Category; name: string; desc: string; kw: string }> = [
     { id: "tax", name: "세금", desc: "부가세·종소세·법인세 신고와 절세", kw: "사업자 세금" },
