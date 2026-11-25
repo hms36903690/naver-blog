@@ -31,6 +31,10 @@ export type Settings = {
   naverCtaUrl: string;
   /** 네이버 글에 쓸 "내 소개"(실제 경력·자격만). 비어 있으면 경력 언급 없이 전문가 관점으로만 쓴다. */
   naverAuthorBio: string;
+  /** 보험설계사용 광고 안전장치(켜짐이 기본) — AI 규칙 + 문제 표현 검사 + 심의필 문구 없으면 네이버 실발행 막기 */
+  complianceMode: boolean;
+  /** 소속 회사 심의에서 받은 심의필 번호·필수 안내 문구(여러 줄 가능) — 글 끝에 붙는다 */
+  complianceNotice: string;
 };
 
 /** 숫자 설정의 범위. API 로 내려보내 UI 가 같은 규칙을 쓴다. */
@@ -45,7 +49,7 @@ export const LIMITS = {
   tistoryWeeklyLimit: { min: 1, max: 14 },
 } as const;
 
-const BOOL_KEYS = ["dryRun", "killSwitch", "showBrowser"] as const;
+const BOOL_KEYS = ["dryRun", "killSwitch", "showBrowser", "complianceMode"] as const;
 
 /** "https://myblog.tistory.com/manage" 처럼 넣어도 "myblog" 로 정리. 형식이 틀리면 null. */
 export function normalizeTistoryBlog(v: string): string | null {
@@ -85,6 +89,7 @@ export function getSettings(): Settings {
     else if (key === "naverCtaText") s.naverCtaText = value;
     else if (key === "naverCtaUrl") s.naverCtaUrl = value;
     else if (key === "naverAuthorBio") s.naverAuthorBio = value;
+    else if (key === "complianceNotice") s.complianceNotice = value;
   }
   return s;
 }
@@ -104,6 +109,8 @@ export function updateSettings(patch: Record<string, unknown>): Settings {
         up.run(k, String(clamp(k as NumKey, n)));
       } else if (k === "naverCtaText") {
         up.run(k, String(v ?? "").trim().slice(0, 300));
+      } else if (k === "complianceNotice") {
+        up.run(k, String(v ?? "").trim().slice(0, 500));
       } else if (k === "naverAuthorBio") {
         up.run(k, String(v ?? "").trim().slice(0, 300));
       } else if (k === "naverCtaUrl") {

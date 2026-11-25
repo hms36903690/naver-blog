@@ -22,6 +22,8 @@ export type Settings = {
   naverCtaText: string;
   naverCtaUrl: string;
   naverAuthorBio: string;
+  complianceMode: boolean;
+  complianceNotice: string;
 };
 export type Limits = Record<string, { min: number; max: number }>;
 
@@ -80,6 +82,8 @@ export default function SettingsDrawer(props: {
     setCtaText(s.naverCtaText);
     setCtaUrl(s.naverCtaUrl);
   }, [s.naverCtaText, s.naverCtaUrl]);
+  const [notice, setNotice] = useState(s.complianceNotice);
+  useEffect(() => setNotice(s.complianceNotice), [s.complianceNotice]);
   const [bio, setBio] = useState(s.naverAuthorBio);
   useEffect(() => setBio(s.naverAuthorBio), [s.naverAuthorBio]);
   const [style, setStyle] = useState(s.tistoryStyle);
@@ -223,6 +227,29 @@ export default function SettingsDrawer(props: {
             AI 응답 대기<small>{range("claudeTimeoutSec")}초</small>
           </div>
           <Num k="claudeTimeoutSec" s={s} limits={limits} save={save} unit="초" />
+        </div>
+
+        <h3>보험 광고 규정 (보험설계사)</h3>
+        <div className="set">
+          <div>
+            보험 광고 안전장치
+            <small>네이버 블로그에만 적용됩니다(티스토리는 정보성이라 제외). AI가 보험 상품명·보험사·보장·가입 권유를 쓰지 않고, 글을 다 쓴 뒤 문제 표현을 한 번 더 검사합니다. 켜져 있으면 심의필 문구가 없거나 문제 표현이 있을 때 네이버에 실제 발행하지 않습니다.</small>
+          </div>
+          <Switch label="보험 광고 안전장치" checked={s.complianceMode} color="var(--safe)" onChange={(v) => save({ complianceMode: v })} />
+        </div>
+        <div className="set" style={{ display: "block" }}>
+          <div style={{ marginBottom: 6 }}>
+            심의필 번호·필수 안내 문구
+            <small>소속 회사(GA·보험사) 준법감시 심의에서 받은 문구를 그대로 넣으세요. 네이버 글 끝에 붙습니다. 비어 있으면 네이버 실제 발행을 막습니다(연습 모드·티스토리 임시저장은 됨).</small>
+          </div>
+          <textarea
+            style={{ minHeight: 80 }}
+            value={notice}
+            maxLength={500}
+            placeholder="예) ○○보험협회 심의필 제0000-000호 (2026.12.01~2027.11.30)"
+            onChange={(e) => setNotice(e.target.value)}
+            onBlur={() => notice !== s.complianceNotice && save({ complianceNotice: notice })}
+          />
         </div>
 
         <h3>네이버 화면 점검</h3>

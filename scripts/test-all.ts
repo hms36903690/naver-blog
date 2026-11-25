@@ -208,6 +208,16 @@ async function main() {
     await br.close();
   }
 
+  // ── 보험 광고 안전장치: 문제 표현 검사(사회보험·공공기관은 통과) ──
+  const { scanCompliance, appendComplianceNotice } = await import("@/lib/compliance");
+  const mkC = (t: string) => ({ title: "제목", sections: [{ type: "paragraph" as const, text: t }, { type: "paragraph" as const, text: "둘" }, { type: "paragraph" as const, text: "셋" }] });
+  const clean = scanCompliance(mkC("국민건강보험공단 안내에 따르면 4대보험과 고용보험, 산재보험, 국민연금 보험료는 매달 신고합니다. 건강보험 자격도 확인하세요."));
+  ok("사회보험·공공기관 표현은 걸리지 않음", clean.length === 0, JSON.stringify(clean));
+  const dirty = scanCompliance(mkC("법인 대표라면 종신보험이나 CEO플랜보다 경영인 정기보험 가입하세요. 삼성생명 상품이 보장 내용이 좋습니다."));
+  ok("보험 상품명·가입 권유·보험사·보장 표현은 걸림", ["종신보험", "CEO플랜", "가입하세요", "삼성생명"].every((w) => dirty.some((h) => h.word.includes(w))) && dirty.some((h) => h.kind === "보장 내용"), dirty.map((h) => h.word).join(","));
+  ok("심의필 문구는 여러 줄을 글 끝에 붙임", appendComplianceNotice(mkC("x"), "심의필 제1호\n유의사항").sections.length === 5);
+  ok("보험 광고 안전장치는 기본 켜짐", getSettings().complianceMode === true && getSettings().complianceNotice === "");
+
   // ── 7-8 마크다운 무력화 ──
   const md = "정말 좋았어요~~ **진짜** `코드`\n# 제목\n> 인용\n- 목록\n물결~ 하나";
   const neu = neutralizeMarkdown(md);

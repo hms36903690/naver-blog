@@ -39,6 +39,8 @@ export const config = {
     naverCtaText: "우리 가게 상황에 맞는 세금·인건비·임대료 정리가 궁금하신가요? 아래에서 무료 상담을 신청하시면 상황을 듣고 필요한 정보를 정리해 드리고, 신고·대리가 필요한 부분은 세무사·노무사와 연결해 드립니다.",
     naverCtaUrl: "",
     naverAuthorBio: "",
+    complianceMode: bool("COMPLIANCE_MODE", true),
+    complianceNotice: "",
   },
 };
 

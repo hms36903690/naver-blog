@@ -18,6 +18,18 @@ export function diagnoseFailure(text: string, opts: { target: "naver" | "tistory
   const has = (re: RegExp) => re.test(t);
   const retryOrRemake: FixAction = opts.hasDraft ? "retry" : "remake";
 
+  if (has(/심의필 문구가 없어/))
+    return {
+      title: "보험 광고 심의필 문구가 없어 안전하게 멈췄습니다",
+      steps: ["소속 회사(GA·보험사) 준법감시팀에 블로그 글 심의를 받으세요. [글 복사]로 글을 복사해 제출하면 됩니다.", "심의필 번호와 필수 안내 문구를 [설정] → 보험 광고 규정에 넣은 뒤 [다시 시도]를 누르세요."],
+      actions: ["settings", retryOrRemake],
+    };
+  if (has(/심의에서 문제 될 수 있는 표현/))
+    return {
+      title: "보험 광고 규정에 걸릴 수 있는 표현이 있어 멈췄습니다",
+      steps: ["안내된 표현(보험 상품명·가입 권유 등)이 글에 들어 있습니다.", "[처음부터 다시 만들기]를 하거나, [글 복사]로 복사해 그 표현을 고친 뒤 블로그에 직접 올리세요."],
+      actions: ["remake"],
+    };
   if (has(/티스토리 주소/))
     return { title: "티스토리 주소가 없거나 맞지 않습니다", steps: ["[설정] → 티스토리 주소에 bnlife3.tistory.com 처럼 넣어 주세요.", "그다음 [다시 시도]를 누르세요."], actions: ["settings", retryOrRemake] };
   if (has(/티스토리 로그인|카카오/))

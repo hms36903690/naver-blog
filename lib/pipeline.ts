@@ -10,6 +10,7 @@ import { describePhotos, listLocalPhotos, placePhotos, type LocalPhoto, type Pho
 import { jobLog } from "./log";
 import { checkPublishGuard, publishDraft, type PublishResult } from "./naver/publish";
 import { appendNaverCta } from "./cta";
+import { appendComplianceNotice, scanCompliance } from "./compliance";
 import { verifySession } from "./naver/session";
 import { saveTistoryDraft } from "./tistory/draft";
 import { exportPhotosForUpload } from "./tistory/html";
@@ -315,9 +316,15 @@ async function publishStage(c: {
   tags: string[];
   log: LogFn;
 }): Promise<void> {
-  const { jobId, draftId, draft, images, input, catLabel, tags, log } = c;
+  const { jobId, draftId, images, input, catLabel, tags, log } = c;
   const target = input.target ?? "naver";
   const settings = getSettings();
+  // 보험설계사용 안전장치: 문제 표현 검사 + 심의필 문구 첨부(저장된 초안은 그대로 — 다시 시도 때 두 번 붙지 않게)
+  // 네이버에만 적용(티스토리는 순수 정보성 블로그 — 사용자 지정)
+  const comply = settings.complianceMode && target === "naver";
+  const hits = comply ? scanCompliance(c.draft) : [];
+  if (hits.length) log(`심의에서 문제 될 수 있는 표현 ${hits.length}개: ${hits.map((h) => `"${h.word}"(${h.kind})`).join(", ")}`, "warn");
+  const draft = comply ? appendComplianceNotice(c.draft, settings.complianceNotice) : c.draft;
   // 티스토리: 반자동 — 임시저장까지만(발행은 사람이)
   if (target === "tistory") {
     const nowT = getSettings();
@@ -369,6 +376,20 @@ async function publishStage(c: {
   // 발행
   setJobStage(jobId, "publishing", settings.dryRun ? "연습: 글쓰기 화면에 입력 중" : "네이버에 올리는 중");
   const now = getSettings(); // 작업 도중 바뀐 설정(연습 모드·중단)을 반영
+  if (!now.dryRun && now.complianceMode) {
+    // ⚠️ 보험설계사: 심의 없이 실제 발행하면 안 된다 → 심의필 문구가 없거나 문제 표현이 있으면 막는다
+    const reason = !now.complianceNotice.trim()
+      ? "심의필 문구가 없어 네이버에 발행하지 않았습니다. 소속 회사 심의를 받은 뒤 [설정] → 보험 광고 규정에 심의필 번호·안내 문구를 넣고 다시 시도하세요."
+      : hits.length
+        ? `심의에서 문제 될 수 있는 표현이 있어 발행하지 않았습니다: ${hits.map((h) => `"${h.word}"`).join(", ")}. [글 복사]로 고쳐 직접 올리거나 처음부터 다시 만들어 주세요.`
+        : "";
+    if (reason) {
+      recordPost(jobId, draftId, { status: "blocked", note: reason });
+      log(reason, "warn");
+      setJobStage(jobId, "done", "발행 막힘(심의)");
+      return;
+    }
+  }
   if (!now.dryRun) {
     const g = checkPublishGuard(now);
     if (g.blocked) {

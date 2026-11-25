@@ -1,3 +1,5 @@
+import { COMPLIANCE_RULE } from "../compliance";
+import { getSettings } from "../settings";
 import { AI_IMAGES, CATEGORY_LABEL, categoriesFor, TISTORY_RULES, type Category, type Mode, type PhotoSource, type Target } from "../types";
 
 /** 모든 모드 공통: 마크다운 금지 + 섹션 JSON 형식 설명 */
@@ -136,7 +138,10 @@ ${bio ? `- 필자 소개(사용자가 적은 실제 내용 — 이 범위 안에
 }
 
 export function platformStyle(target: Target, styleGuide = "", category?: Category, authorBio = ""): string {
-  if (target === "naver") return [naverExpertStyle(authorBio), category ? "- " + CATEGORY_RULE[category] : ""].filter(Boolean).join("\n");
+  // 보험설계사용 광고 규칙(설정에서 켜고 끔) — 네이버(상담 신청을 받는 사업자 블로그)에만.
+  //   티스토리는 사용자 지정 "순수 정보성" 블로그라 적용하지 않는다.
+  const comp = target === "naver" && getSettings().complianceMode ? "\n" + COMPLIANCE_RULE : "";
+  if (target === "naver") return [naverExpertStyle(authorBio), category ? "- " + CATEGORY_RULE[category] : ""].filter(Boolean).join("\n") + comp;
   const own = styleGuide.trim()
     ? `\n\n이 블로그 고유의 글투(사장님 블로그 최근 글에서 배운 것 — 위 규칙과 겹치면 이쪽을 따르되, 문장을 베끼지는 마라):\n${styleGuide.trim()}`
     : "";
